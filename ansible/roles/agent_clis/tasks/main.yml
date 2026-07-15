@@ -1,0 +1,56 @@
+---
+# Pinned Node.js from the official tarball into /opt, so the system
+# Node never depends on distro packaging and upgrades are explicit.
+
+- name: Check Node.js architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Select Node.js archive architecture
+  ansible.builtin.set_fact:
+    agent_clis_node_architecture: "{{ {'x86_64': 'x64', 'aarch64': 'arm64'}[ansible_architecture] }}"
+
+- name: Download and extract pinned Node.js
+  ansible.builtin.unarchive:
+    src: "https://nodejs.org/dist/v{{ node_version }}/node-v{{ node_version }}-linux-{{ agent_clis_node_architecture }}.tar.xz"
+    dest: /opt
+    remote_src: true
+    creates: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_node_architecture }}"
+
+- name: Symlink Node.js binaries
+  ansible.builtin.file:
+    src: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_node_architecture }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop:
+    - node
+    - npm
+    - npx
+
+- name: Check installed CLI versions
+  ansible.builtin.command: "{{ agent_clis_cli.bin }} --version"
+  register: agent_clis_installed
+  changed_when: false
+  failed_when: false
+  loop:
+    - { name: t3code, bin: "{{ t3code_bin }}", package: "{{ t3code_npm_package }}", version: "{{ t3code_version }}" }
+    - { name: codex, bin: "{{ codex_bin }}", package: "{{ codex_npm_package }}", version: "{{ codex_version }}" }
+    - { name: claude, bin: "{{ claude_code_bin }}", package: "{{ claude_code_npm_package }}", version: "{{ claude_code_version }}" }
+    - { name: opencode, bin: "{{ opencode_bin }}", package: "{{ opencode_npm_package }}", version: "{{ opencode_version }}" }
+  loop_control:
+    loop_var: agent_clis_cli
+    label: "{{ agent_clis_cli.name }}"
+
+- name: Install pinned agent CLIs
+  ansible.builtin.command: >
+    npm install -g --prefix /usr/local
+    {{ agent_clis_result.agent_clis_cli.package }}@{{ agent_clis_result.agent_clis_cli.version }}
+  environment:
+    PATH: "/usr/local/bin:/usr/bin:/bin"
+  changed_when: true
+  when: agent_clis_result.rc != 0 or agent_clis_result.agent_clis_cli.version not in agent_clis_result.stdout
+  loop: "{{ agent_clis_installed.results }}"
+  loop_control:
+    loop_var: agent_clis_result
+    label: "{{ agent_clis_result.agent_clis_cli.package }}@{{ agent_clis_result.agent_clis_cli.version }}"

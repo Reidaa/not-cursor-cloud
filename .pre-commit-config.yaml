@@ -1,0 +1,47 @@
+repos:
+  - repo: https://github.com/mpalmer/action-validator
+    rev: v0.9.0
+    hooks:
+      - id: action-validator
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-toml
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.47.2
+    hooks:
+      - id: typos
+        args:
+          - "--write-changes"
+
+  - repo: https://github.com/koalaman/shellcheck-precommit
+    rev: v0.11.0
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: v1.29.0
+    hooks:
+      - id: yamllint
+
+  - repo: local
+    hooks:
+      - id: ansible-lint
+        name: Ansible lint
+        entry: uv run ansible-lint ansible/
+        language: system
+        files: ^ansible/.*\.ya?ml$
+        pass_filenames: false
+
+      - id: tofu-fmt
+        name: OpenTofu format
+        entry: tofu -chdir=tofu fmt
+        language: system
+        files: ^tofu/.*\.tf$
+        pass_filenames: false

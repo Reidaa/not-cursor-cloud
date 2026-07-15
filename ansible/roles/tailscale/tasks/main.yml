@@ -1,0 +1,71 @@
+---
+- name: Add Tailscale signing key
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: "0644"
+
+- name: Add Tailscale apt repository
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main"
+    filename: tailscale
+    state: present
+
+- name: Install Tailscale
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: true
+
+- name: Ensure tailscaled is running
+  ansible.builtin.systemd_service:
+    name: tailscaled
+    enabled: true
+    state: started
+
+- name: Check Tailscale backend state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_state
+  changed_when: false
+  failed_when: false
+
+- name: Bring Tailscale up (first enrollment only)
+  ansible.builtin.command: >
+    tailscale up
+    --authkey {{ tailscale_authkey }}
+    --hostname {{ tailscale_hostname }}
+    --ssh
+  no_log: true
+  changed_when: true
+  when:
+    - tailscale_authkey | default('') | length > 0
+    - tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'
+
+- name: Refresh Tailscale backend state
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_state
+  changed_when: false
+  failed_when: false
+
+- name: Report enrollment status
+  ansible.builtin.debug:
+    msg: >
+      Tailscale backend state:
+      {{ (tailscale_state.stdout | from_json).BackendState
+         if tailscale_state.rc == 0 else 'unknown' }}.
+
+- name: Explain manual Tailscale enrollment
+  ansible.builtin.debug:
+    msg: |
+      Tailscale is installed but not enrolled on the remote VPS.
+
+      1. On your local machine, connect to the VPS:
+         ssh {{ ansible_user }}@{{ ansible_host }}
+
+      2. Inside the remote VPS, enroll it in your tailnet:
+         sudo tailscale up --hostname {{ tailscale_hostname }} --ssh
+         exit
+
+      3. Back on your local machine, finish configuration:
+         just configure
+  when: tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'

@@ -1,0 +1,32 @@
+---
+- name: Create agent user (no password, no sudo)
+  ansible.builtin.user:
+    name: "{{ agent_user }}"
+    shell: /bin/bash
+    home: "{{ agent_home }}"
+    password: "!"
+    create_home: true
+
+- name: Restrict agent home directory
+  ansible.builtin.file:
+    path: "{{ agent_home }}"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+
+- name: Create agent directory layout
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0750"
+  loop:
+    - "{{ agent_root }}"
+    - "{{ agent_workspaces }}"
+    - "{{ agent_workspaces }}/repositories"
+    - "{{ agent_workspaces }}/worktrees"
+    - "{{ agent_workspaces }}/archived"
+    - "{{ agent_cache }}"
+    - "{{ agent_state }}"

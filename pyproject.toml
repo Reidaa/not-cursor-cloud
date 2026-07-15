@@ -1,0 +1,19 @@
+[project]
+name = "not-cursor-cloud"
+version = "0.1.0"
+description = "Infra for the T3 Code agent VPS (OpenTofu + Ansible), see docs/t3code-vps-implementation-plan.md"
+# ansible-core 2.18 supports up to Python 3.13; bump together.
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "ansible-core~=2.18.0",
+]
+
+[dependency-groups]
+dev = [
+    "ansible-lint>=25.1",
+    "pre-commit>=4.6.0",
+    "yamllint>=1.35",
+]
+
+[tool.uv]
+package = false

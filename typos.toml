@@ -1,0 +1,3 @@
+[default.extend-words]
+# Hetzner's Helsinki region uses location codes such as hel1.
+hel = "hel"

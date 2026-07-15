@@ -1,0 +1,17 @@
+---
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ base_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Read current timezone
+  ansible.builtin.command: timedatectl show -p Timezone --value
+  register: base_current_tz
+  changed_when: false
+
+- name: Set timezone
+  ansible.builtin.command: timedatectl set-timezone {{ timezone }}
+  when: base_current_tz.stdout != timezone
+  changed_when: true

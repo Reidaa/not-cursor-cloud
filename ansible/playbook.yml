@@ -1,0 +1,13 @@
+---
+- name: Configure agent VPS (plan Steps 2-5)
+  hosts: agent_vps
+  become: true
+  vars_files:
+    - ../versions.yml
+  roles:
+    - base
+    - security
+    - tailscale
+    - agent_user
+    - agent_clis
+    - t3code

@@ -1,0 +1,27 @@
+#cloud-config
+# Minimal first boot: just enough for Ansible to connect (plan Step 1).
+# All permanent configuration lives in Ansible; no long-lived secrets here.
+
+users:
+  - name: ${admin_user}
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: "ALL=(ALL) NOPASSWD:ALL"
+    lock_passwd: true
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+ssh_pwauth: false
+disable_root: true
+
+package_update: true
+package_upgrade: true
+packages:
+  - python3
+  - sudo
+  - ca-certificates
+
+# Reboot only if the security upgrades require it (e.g. new kernel).
+power_state:
+  mode: reboot
+  condition: test -f /var/run/reboot-required

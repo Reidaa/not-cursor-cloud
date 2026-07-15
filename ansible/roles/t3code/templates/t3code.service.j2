@@ -1,0 +1,21 @@
+[Unit]
+Description=T3 Code agent GUI (localhost only, exposed via Tailscale Serve)
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ agent_user }}
+Group={{ agent_user }}
+WorkingDirectory={{ agent_workspaces }}
+Environment=HOME={{ agent_home }}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/{{ t3code_bin }} serve --host {{ t3code_host }} --port {{ t3code_port }} --no-browser
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

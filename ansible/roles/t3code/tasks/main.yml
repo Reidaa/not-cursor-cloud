@@ -1,0 +1,64 @@
+---
+- name: Install t3code systemd service
+  ansible.builtin.template:
+    src: t3code.service.j2
+    dest: /etc/systemd/system/t3code.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart t3code
+
+- name: Enable and start t3code
+  ansible.builtin.systemd_service:
+    name: t3code
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Check current Tailscale Serve config
+  ansible.builtin.command: tailscale serve status
+  register: t3code_serve_status
+  changed_when: false
+  failed_when: false
+
+- name: Expose T3 Code privately via Tailscale Serve
+  ansible.builtin.command: >
+    tailscale serve --yes --bg http://{{ t3code_host }}:{{ t3code_port }}
+  register: t3code_serve_result
+  changed_when: t3code_serve_result.rc == 0
+  failed_when:
+    - t3code_serve_result.rc != 0
+    - >-
+      'TLS certificate support is not enabled/configured for your tailnet'
+      not in t3code_serve_result.stderr
+  when:
+    - tailscale_state.rc == 0
+    - (tailscale_state.stdout | from_json).BackendState == 'Running'
+    - (t3code_port | string) not in t3code_serve_status.stdout
+
+- name: Explain manual Tailscale Serve approval
+  ansible.builtin.debug:
+    msg: |
+      Tailscale Serve requires one-time HTTPS approval for this tailnet.
+
+      1. On your local machine, connect to the VPS:
+         ssh {{ ansible_user }}@{{ ansible_host }}
+
+      2. Start the interactive approval flow:
+         sudo tailscale serve --bg http://{{ t3code_host }}:{{ t3code_port }}
+
+      3. Open the URL shown by Tailscale, enable HTTPS, and leave Funnel disabled.
+
+      4. Back on your local machine, finish configuration:
+         just configure
+  when:
+    - t3code_serve_result is defined
+    - (t3code_serve_result.rc | default(0)) != 0
+
+- name: Report Tailscale Serve setup deferred until enrollment
+  ansible.builtin.debug:
+    msg: >-
+      Tailscale Serve setup is deferred until the remote VPS is enrolled.
+      Follow the enrollment instructions above, then run `just configure`
+      again on your local machine.
+  when: tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'

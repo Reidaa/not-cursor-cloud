@@ -1,0 +1,21 @@
+# OpenTofu / Terraform — state contains the API token and server details.
+tofu/.terraform/
+tofu/.terraform.lock.hcl
+tofu/terraform.tfstate
+tofu/terraform.tfstate.backup
+tofu/*.tfplan
+tofu/*.plan
+tofu/tfplan
+tofu/crash*.log
+tofu/*.tfvars
+tofu/*.tfvars.json
+
+# Ansible
+ansible/*.retry
+ansible/inventory/hosts.yml
+
+# Python env (uv) and local secrets
+.venv/
+.env
+
+docs
