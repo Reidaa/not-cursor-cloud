@@ -1,6 +1,6 @@
 # AGENTS.md
 
-- Do not run the playbook unless explicitly asked
+- Do not run ansible playbook that could induce destructive changes by yourself
 
 ## Code Style
 
