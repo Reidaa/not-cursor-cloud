@@ -1,0 +1,44 @@
+---
+- name: Check Node.js architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Select Node.js archive architecture
+  ansible.builtin.set_fact:
+    nodejs_archive_architecture: >-
+      {{ {'x86_64': 'x64', 'aarch64': 'arm64'}[ansible_architecture] }}
+
+- name: Download pinned Node.js archive
+  ansible.builtin.get_url:
+    url: >-
+      https://nodejs.org/dist/v{{ node_version }}/node-v{{ node_version }}-linux-{{ nodejs_archive_architecture }}.tar.xz
+    dest: "/opt/node-v{{ node_version }}-linux-{{ nodejs_archive_architecture }}.tar.xz"
+    checksum: "sha256:{{ node_checksums[nodejs_archive_architecture] }}"
+    mode: "0644"
+
+- name: Extract pinned Node.js
+  ansible.builtin.unarchive:
+    src: "/opt/node-v{{ node_version }}-linux-{{ nodejs_archive_architecture }}.tar.xz"
+    dest: /opt
+    remote_src: true
+    creates: "/opt/node-v{{ node_version }}-linux-{{ nodejs_archive_architecture }}"
+  when: not ansible_check_mode
+
+- name: Symlink Node.js binaries
+  ansible.builtin.file:
+    src: "/opt/node-v{{ node_version }}-linux-{{ nodejs_archive_architecture }}/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop:
+    - node
+    - npm
+    - npx
+  when: not ansible_check_mode
+
+- name: Verify installed Node.js version
+  ansible.builtin.command: /usr/local/bin/node --version
+  register: nodejs_installed_version
+  changed_when: false
+  failed_when: nodejs_installed_version.stdout != ('v' ~ node_version)
+  when: not ansible_check_mode

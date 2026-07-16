@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot bootstrap: provision the VPS (plan Step 1) then configure it
+# One-shot bootstrap: provision the VPS then configure it
 # (Steps 2-5). Requires: tofu, uv, TF_VAR_hcloud_token set, and
 # TF_VAR_ssh_public_key set (or a .env file — run via `just bootstrap`).
 set -euo pipefail

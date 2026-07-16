@@ -1,0 +1,40 @@
+---
+- name: Check GitHub CLI architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Select GitHub CLI archive architecture
+  ansible.builtin.set_fact:
+    github_cli_archive_architecture: >-
+      {{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] }}
+
+- name: Download pinned GitHub CLI archive
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/cli/cli/releases/download/v{{ github_cli_version }}/gh_{{ github_cli_version }}_linux_{{ github_cli_archive_architecture }}.tar.gz
+    dest: "/opt/gh_{{ github_cli_version }}_linux_{{ github_cli_archive_architecture }}.tar.gz"
+    checksum: "sha256:{{ github_cli_checksums[github_cli_archive_architecture] }}"
+    mode: "0644"
+
+- name: Extract pinned GitHub CLI
+  ansible.builtin.unarchive:
+    src: "/opt/gh_{{ github_cli_version }}_linux_{{ github_cli_archive_architecture }}.tar.gz"
+    dest: /opt
+    remote_src: true
+    creates: "/opt/gh_{{ github_cli_version }}_linux_{{ github_cli_archive_architecture }}/bin/gh"
+  when: not ansible_check_mode
+
+- name: Symlink GitHub CLI binary
+  ansible.builtin.file:
+    src: "/opt/gh_{{ github_cli_version }}_linux_{{ github_cli_archive_architecture }}/bin/gh"
+    dest: /usr/local/bin/gh
+    state: link
+  when: not ansible_check_mode
+
+- name: Verify installed GitHub CLI version
+  ansible.builtin.command: /usr/local/bin/gh --version
+  register: github_cli_installed_version
+  changed_when: false
+  failed_when: github_cli_version not in github_cli_installed_version.stdout
+  when: not ansible_check_mode

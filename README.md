@@ -268,7 +268,9 @@ your tailnet, or attach with the Herdr command above.
 | `ansible/inventory/hosts.yml` | Current Ansible SSH target, generated from OpenTofu |
 
 Tracked examples document every setting. Node.js, mise, GitHub CLI, and Herdr
-pins live in [`versions.yml`](versions.yml). Exact npm CLI versions live in
+pins live in [`versions.yml`](versions.yml). Their checksum-verified releases are
+managed by dedicated Ansible roles; `agent_clis` manages the `package.json`-driven
+npm CLIs and Claude cron job. Exact npm CLI versions live in
 [`package.json`](package.json), which Dependabot checks weekly.
 
 Useful commands:

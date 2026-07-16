@@ -67,7 +67,7 @@ destroy:
 configure *ARGS:
     cd ansible && uv run ansible-playbook playbook.yml {{ ARGS }}
 
-# Dry run with diff — use before and after changing versions.yml (plan Step 10)
+# Dry run with diff — use before and after changing versions.yml
 check *ARGS:
     cd ansible && uv run ansible-playbook playbook.yml --check --diff {{ ARGS }}
 

@@ -1,0 +1,56 @@
+---
+- name: Check mise architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Select mise archive architecture
+  ansible.builtin.set_fact:
+    mise_archive_architecture: >-
+      {{ {'x86_64': 'x64', 'aarch64': 'arm64'}[ansible_architecture] }}
+
+- name: Create pinned mise installation directory
+  ansible.builtin.file:
+    path: "/opt/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}"
+    state: directory
+    mode: "0755"
+  when: not ansible_check_mode
+
+- name: Download pinned mise archive
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/jdx/mise/releases/download/v{{ mise_version }}/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}.tar.gz
+    dest: "/opt/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}.tar.gz"
+    checksum: "sha256:{{ mise_checksums[mise_archive_architecture] }}"
+    mode: "0644"
+
+- name: Extract pinned mise
+  ansible.builtin.unarchive:
+    src: "/opt/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}.tar.gz"
+    dest: "/opt/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}"
+    remote_src: true
+    creates: "/opt/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}/mise/bin/mise"
+  when: not ansible_check_mode
+
+- name: Symlink mise binary
+  ansible.builtin.file:
+    src: "/opt/mise-v{{ mise_version }}-linux-{{ mise_archive_architecture }}/mise/bin/mise"
+    dest: /usr/local/bin/mise
+    state: link
+  when: not ansible_check_mode
+
+- name: Activate mise in the agent's interactive Bash shells
+  ansible.builtin.blockinfile:
+    path: "{{ agent_home }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED MISE ACTIVATION"
+    block: 'eval "$(mise activate bash)"'
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0644"
+
+- name: Verify installed mise version
+  ansible.builtin.command: /usr/local/bin/mise --version
+  register: mise_installed_version
+  changed_when: false
+  failed_when: mise_version not in mise_installed_version.stdout
+  when: not ansible_check_mode

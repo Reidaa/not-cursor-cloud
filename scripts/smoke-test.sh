@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Smoke test after provisioning or upgrades (plan Steps 4 and 10).
+# Smoke test after provisioning or upgrades.
 # Usage: scripts/smoke-test.sh <ssh-host>   (e.g. admin@agent-vps.tailnet.ts.net)
 set -euo pipefail
 

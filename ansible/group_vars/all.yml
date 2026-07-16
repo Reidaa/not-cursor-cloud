@@ -6,18 +6,18 @@ admin_user: "{{ lookup('ansible.builtin.env', 'TF_VAR_admin_user') | default('ad
 agent_user: "{{ lookup('ansible.builtin.env', 'AGENT_USER') | default('agent', true) }}"
 agent_home: "/home/{{ agent_user }}"
 
-# Directory layout (plan Steps 2 and 6)
+# Directory layout
 agent_root: /srv/agent
 agent_workspaces: "{{ agent_root }}/workspaces"
 agent_cache: "{{ agent_root }}/cache"
 agent_state: "{{ agent_root }}/state"
 
-# T3 Code service (plan Step 4)
+# T3 Code service
 t3code_bin: t3
 t3code_host: 127.0.0.1
 t3code_port: 3773
 
-# Tailscale (plan Step 3)
+# Tailscale
 tailscale_hostname: "{{ lookup('ansible.builtin.env', 'TF_VAR_server_name') | default('agent-vps', true) }}"
 tailscale_authkey: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTHKEY') | default('', true) }}"
 

@@ -55,7 +55,7 @@ variable "ssh_public_key" {
 }
 
 variable "enable_public_ssh" {
-  description = "Keep public SSH open. Set to false once Tailscale access is verified (plan Step 3)."
+  description = "Keep public SSH open. Set to false once Tailscale access is verified."
   type        = bool
 }
 

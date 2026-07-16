@@ -21,7 +21,7 @@ resource "hcloud_ssh_key" "bootstrap" {
 resource "hcloud_firewall" "agent_vps" {
   name = "${var.server_name}-firewall"
 
-  # Bootstrap SSH. After Tailscale access is confirmed (plan Step 3),
+  # Bootstrap SSH. After Tailscale access is confirmed,
   # set enable_public_ssh = false and re-apply: administration then goes
   # exclusively through Tailscale (SSH over tailnet or Tailscale SSH).
   dynamic "rule" {

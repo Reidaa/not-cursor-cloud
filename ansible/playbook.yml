@@ -1,5 +1,5 @@
 ---
-- name: Configure agent VPS (plan Steps 2-5)
+- name: Configure agent VPS
   hosts: agent_vps
   become: true
   vars_files:
@@ -9,6 +9,9 @@
     - security
     - tailscale
     - agent_user
+    - nodejs
+    - mise
+    - github_cli
     - agent_clis
     - herdr
     - t3code
