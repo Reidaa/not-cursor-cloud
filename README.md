@@ -1,8 +1,9 @@
 # not-cursor-cloud
 
 An opinionated, self-hosted remote coding agent on a Hetzner VPS. It installs
-T3 Code, Codex CLI, Claude Code, and OpenCode, then exposes the web interface
-privately through Tailscale Serve.
+T3 Code, Herdr, Codex CLI, Claude Code, and OpenCode. The T3 Code web interface
+is private through Tailscale Serve; Herdr connects on demand through Tailscale
+SSH without exposing an application port.
 
 The application never listens on a public interface. Public SSH is restricted
 to your current IP during bootstrap and should be removed after Tailscale is
@@ -13,24 +14,22 @@ verified.
 - One Hetzner Cloud server and firewall, managed by OpenTofu.
 - Ubuntu 24.04 with security updates and hardened SSH, managed by Ansible.
 - A passwordless, non-sudo `agent` account for coding tools.
-- Pinned Node.js, T3 Code, Codex CLI, Claude Code, and OpenCode versions.
+- Pinned Node.js, T3 Code, Herdr, Codex CLI, Claude Code, and OpenCode versions.
 - Tailscale SSH and Tailscale Serve; Funnel is never enabled.
 
 Review Hetzner's current pricing before applying. Running this repository
 creates paid infrastructure.
 
-## Supported setup
+## Supported (Tested) setup
 
 - Hetzner Cloud
 - Ubuntu 24.04 LTS
 - x86-64 or ARM64 servers
-- macOS or Linux as the controller
+- macOS as the controller
 - A Tailscale account and clients on the devices that need access
 
 ## Current limitations
 
-- Workspaces live on the VPS filesystem; automated backups are not implemented.
-- Repository workloads are not container-isolated. Do not run untrusted code.
 - This is a single-user, single-server setup rather than a hosted service.
 
 ## Prerequisites
@@ -197,14 +196,65 @@ The selected GitHub account or token needs write access to repositories the
 agent should push to. Authentication is stored in the restricted agent home
 directory and is not managed by Ansible or infrastructure state.
 
+## Connect with Herdr
+
+Herdr runs on demand as the unprivileged `agent` account. The local client uses
+SSH to start or join the agent-owned server and carries the interface over that
+connection.
+
+Install the matching client locally.
+
+Keep the local and remote versions aligned when upgrading. If they differ,
+Herdr may offer to place an unmanaged matching binary in
+`~agent/.local/bin/herdr`; update the repository pin and local package instead.
+
+First confirm that your tailnet policy permits your identity to use Tailscale
+SSH as the non-root `agent` account:
+
+```bash
+ssh agent@agent-vps.<your-tailnet>.ts.net true
+```
+
+This access is authorized by Tailscale SSH, not the agent's OpenSSH keys. If the
+command is denied, add a narrowly scoped Tailscale SSH policy rule for your
+identity, this node, and the `agent` user. Conventional OpenSSH remains
+admin-only.
+
+Connect directly with a named Herdr session:
+
+```bash
+herdr --remote ssh://agent@agent-vps.<your-tailnet>.ts.net --session agents
+```
+
+New panes default to `/srv/agent/workspaces`, and Herdr-managed worktrees live
+under `/srv/agent/workspaces/worktrees`. Detach with `Ctrl+B`, then `Q`; the
+remote panes continue running. Run the same command to reconnect.
+
+For a shorter target, add an alias to `~/.ssh/config`:
+
+```sshconfig
+Host agent-vps-herdr
+  HostName agent-vps.<your-tailnet>.ts.net
+  User agent
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+```
+
+Then connect with:
+
+```bash
+herdr --remote agent-vps-herdr --session agents
+```
+
 ## Verify
 
 ```bash
 just smoke admin@agent-vps.<your-tailnet>.ts.net
+ssh agent@agent-vps.<your-tailnet>.ts.net herdr --version
 ```
 
 Then open `https://agent-vps.<your-tailnet>.ts.net` on a device connected to
-your tailnet.
+your tailnet, or attach with the Herdr command above.
 
 ## Configuration
 
@@ -242,11 +292,8 @@ just destroy          # permanently destroy the VPS
 
 See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
-## Updates and removal
+## Updates
 
 Review upstream release notes before changing [`versions.yml`](versions.yml),
-then run `just check`, `just configure`, and the smoke test.
-
-`just destroy` deletes the VPS and its local storage. Back up any workspaces
-before using it. The longer-term design is documented in
-[`docs/t3code-vps-implementation-plan.md`](docs/t3code-vps-implementation-plan.md).
+then run `just check`, `just configure`, and the smoke test. Upgrade the local
+Herdr client to the same pinned release before the next remote attach.

@@ -1,0 +1,48 @@
+---
+- name: Check Herdr architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Select Herdr release asset
+  ansible.builtin.set_fact:
+    herdr_release_asset: "herdr-linux-{{ ansible_architecture }}"
+
+- name: Install pinned Herdr
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/ogulcancelik/herdr/releases/download/v{{ herdr_version }}/{{ herdr_release_asset }}
+    dest: "/usr/local/bin/{{ herdr_bin }}"
+    checksum: "sha256:{{ herdr_release_sha256['linux-' ~ ansible_architecture] }}"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Verify installed Herdr version
+  ansible.builtin.command: "/usr/local/bin/{{ herdr_bin }} --version"
+  register: herdr_installed_version
+  changed_when: false
+  failed_when: herdr_version not in herdr_installed_version.stdout
+  when: not ansible_check_mode
+
+- name: Create Herdr configuration directory
+  ansible.builtin.file:
+    path: "{{ agent_home }}/.config/herdr"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+
+- name: Seed Herdr workspace defaults
+  ansible.builtin.copy:
+    dest: "{{ agent_home }}/.config/herdr/config.toml"
+    content: |
+      [terminal]
+      new_cwd = "{{ agent_workspaces }}"
+
+      [worktrees]
+      directory = "{{ agent_workspaces }}/worktrees"
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0600"
+    force: false

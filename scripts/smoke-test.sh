@@ -5,6 +5,8 @@ set -euo pipefail
 
 host="${1:?usage: smoke-test.sh <ssh-host>}"
 agent_user="${AGENT_USER:-agent}"
+agent_host="${host#*@}"
+agent_home="/home/$agent_user"
 fail=0
 
 if [[ ! "$agent_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
@@ -22,6 +24,16 @@ check() {
   fi
 }
 
+check_agent() {
+  local desc="$1"; shift
+  if ssh -o BatchMode=yes -l "$agent_user" "$agent_host" "$@" >/dev/null 2>&1; then
+    echo "PASS  $desc"
+  else
+    echo "FAIL  $desc"
+    fail=1
+  fi
+}
+
 check "t3code service is active"            systemctl is-active t3code
 check "t3code service is enabled"           systemctl is-enabled t3code
 check "T3 Code answers on localhost"        curl --fail --silent http://127.0.0.1:3773
@@ -30,6 +42,15 @@ check "Tailscale Serve is configured"       "tailscale serve status | grep -q 37
 check "agent user exists"                   "id '$agent_user'"
 check "agent user has no sudo"              "id '$agent_user' >/dev/null && ! sudo -l -U '$agent_user' | grep -q 'may run'"
 check "OpenCode CLI is installed"           "sudo -u '$agent_user' opencode --version"
+check "Herdr CLI is installed"              "sudo -u '$agent_user' -H /usr/local/bin/herdr --version"
+check "Herdr config belongs to agent"       "test \"\$(sudo stat -c %U:%G '$agent_home/.config/herdr/config.toml')\" = '$agent_user:$agent_user'"
+check "Herdr config directory is private"   "test \"\$(sudo stat -c %a '$agent_home/.config/herdr')\" = 700"
+check "Herdr config file is private"        "test \"\$(sudo stat -c %a '$agent_home/.config/herdr/config.toml')\" = 600"
+check "Herdr has no system service"         "! systemctl cat herdr >/dev/null 2>&1"
+check "Herdr has no TCP listener"           "! sudo ss -ltnp | grep -q herdr"
+check_agent "agent Tailscale SSH works"     "test \"\$(id -un)\" = '$agent_user'"
+check_agent "agent resolves managed Herdr"  "test \"\$(command -v herdr)\" = /usr/local/bin/herdr"
+check_agent "agent workspace is writable"   "test -w /srv/agent/workspaces"
 check "cron service is active"               systemctl is-active cron
 check "cron service is enabled"              systemctl is-enabled cron
 check "Claude hello cron is installed"       "sudo crontab -u '$agent_user' -l | grep -Fxq \"0 */4 * * * /usr/local/bin/claude auth status >/dev/null 2>&1 && /usr/local/bin/claude --safe-mode --tools '' --print --no-session-persistence hello >/dev/null 2>&1\""

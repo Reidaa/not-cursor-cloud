@@ -22,8 +22,8 @@
       KbdInteractiveAuthentication no
       PermitRootLogin no
       X11Forwarding no
-      # Only interactive accounts may SSH in; the agent user has no key
-      # and no business accepting inbound connections.
+      # Conventional OpenSSH remains admin-only. The keyless agent account may
+      # accept separately authorized Tailscale SSH sessions for remote tools.
       AllowUsers {{ admin_user }}
     owner: root
     group: root

@@ -10,4 +10,5 @@
     - tailscale
     - agent_user
     - agent_clis
+    - herdr
     - t3code
