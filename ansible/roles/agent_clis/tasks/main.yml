@@ -1,59 +1,160 @@
 ---
-# Pinned Node.js from the official tarball into /opt, so the system
-# Node never depends on distro packaging and upgrades are explicit.
+# Install release archives into /opt so upgrades are explicit and independent
+# from distro package versions.
 
-- name: Check Node.js architecture support
+- name: Load npm CLI versions
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../package.json"
+    name: agent_clis_package_manifest
+
+- name: Check agent CLI architecture support
   ansible.builtin.assert:
     that: ansible_architecture in ['x86_64', 'aarch64']
     fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
 
-- name: Select Node.js archive architecture
+- name: Select release architectures
   ansible.builtin.set_fact:
-    agent_clis_node_architecture: "{{ {'x86_64': 'x64', 'aarch64': 'arm64'}[ansible_architecture] }}"
+    agent_clis_archive_architecture: >-
+      {{ {'x86_64': 'x64', 'aarch64': 'arm64'}[ansible_architecture] }}
+    agent_clis_github_architecture: >-
+      {{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_architecture] }}
+    agent_clis_npm_bins:
+      t3: "{{ t3code_bin }}"
+      "@openai/codex": codex
+      "@anthropic-ai/claude-code": claude
+      opencode-ai: opencode
 
-- name: Download and extract pinned Node.js
+- name: Download pinned Node.js archive
+  ansible.builtin.get_url:
+    url: >-
+      https://nodejs.org/dist/v{{ node_version }}/node-v{{ node_version }}-linux-{{ agent_clis_archive_architecture }}.tar.xz
+    dest: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_archive_architecture }}.tar.xz"
+    checksum: "sha256:{{ node_checksums[agent_clis_archive_architecture] }}"
+    mode: "0644"
+
+- name: Extract pinned Node.js
   ansible.builtin.unarchive:
-    src: "https://nodejs.org/dist/v{{ node_version }}/node-v{{ node_version }}-linux-{{ agent_clis_node_architecture }}.tar.xz"
+    src: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_archive_architecture }}.tar.xz"
     dest: /opt
     remote_src: true
-    creates: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_node_architecture }}"
+    creates: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_archive_architecture }}"
+  when: not ansible_check_mode
 
 - name: Symlink Node.js binaries
   ansible.builtin.file:
-    src: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_node_architecture }}/bin/{{ item }}"
+    src: "/opt/node-v{{ node_version }}-linux-{{ agent_clis_archive_architecture }}/bin/{{ item }}"
     dest: "/usr/local/bin/{{ item }}"
     state: link
   loop:
     - node
     - npm
     - npx
+  when: not ansible_check_mode
 
-- name: Check installed CLI versions
-  ansible.builtin.command: "{{ agent_clis_cli.bin }} --version"
+- name: Create pinned mise installation directory
+  ansible.builtin.file:
+    path: "/opt/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}"
+    state: directory
+    mode: "0755"
+  when: not ansible_check_mode
+
+- name: Download pinned mise archive
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/jdx/mise/releases/download/v{{ mise_version }}/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}.tar.gz
+    dest: "/opt/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}.tar.gz"
+    checksum: "sha256:{{ mise_checksums[agent_clis_archive_architecture] }}"
+    mode: "0644"
+
+- name: Extract pinned mise
+  ansible.builtin.unarchive:
+    src: "/opt/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}.tar.gz"
+    dest: "/opt/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}"
+    remote_src: true
+    creates: "/opt/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}/mise/bin/mise"
+  when: not ansible_check_mode
+
+- name: Symlink mise binary
+  ansible.builtin.file:
+    src: "/opt/mise-v{{ mise_version }}-linux-{{ agent_clis_archive_architecture }}/mise/bin/mise"
+    dest: /usr/local/bin/mise
+    state: link
+  when: not ansible_check_mode
+
+- name: Activate mise in the agent's interactive Bash shells
+  ansible.builtin.blockinfile:
+    path: "{{ agent_home }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED MISE ACTIVATION"
+    block: 'eval "$(mise activate bash)"'
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0644"
+
+- name: Remove distro GitHub CLI package
+  ansible.builtin.apt:
+    name: gh
+    state: absent
+
+- name: Download pinned GitHub CLI archive
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/cli/cli/releases/download/v{{ github_cli_version }}/gh_{{ github_cli_version }}_linux_{{ agent_clis_github_architecture }}.tar.gz
+    dest: "/opt/gh_{{ github_cli_version }}_linux_{{ agent_clis_github_architecture }}.tar.gz"
+    checksum: "sha256:{{ github_cli_checksums[agent_clis_github_architecture] }}"
+    mode: "0644"
+
+- name: Extract pinned GitHub CLI
+  ansible.builtin.unarchive:
+    src: "/opt/gh_{{ github_cli_version }}_linux_{{ agent_clis_github_architecture }}.tar.gz"
+    dest: /opt
+    remote_src: true
+    creates: "/opt/gh_{{ github_cli_version }}_linux_{{ agent_clis_github_architecture }}/bin/gh"
+  when: not ansible_check_mode
+
+- name: Symlink GitHub CLI binary
+  ansible.builtin.file:
+    src: "/opt/gh_{{ github_cli_version }}_linux_{{ agent_clis_github_architecture }}/bin/gh"
+    dest: /usr/local/bin/gh
+    state: link
+  when: not ansible_check_mode
+
+- name: Verify installed release CLI versions
+  ansible.builtin.command: "/usr/local/bin/{{ item.bin }} --version"
+  register: agent_clis_release_version
+  changed_when: false
+  failed_when: item.version not in agent_clis_release_version.stdout
+  loop:
+    - { bin: mise, version: "{{ mise_version }}" }
+    - { bin: gh, version: "{{ github_cli_version }}" }
+  loop_control:
+    label: "{{ item.bin }}"
+  when: not ansible_check_mode
+
+- name: Check installed npm CLI versions
+  ansible.builtin.command: "{{ agent_clis_npm_bins[agent_clis_cli.key] }} --version"
   register: agent_clis_installed
   changed_when: false
   failed_when: false
-  loop:
-    - { name: t3code, bin: "{{ t3code_bin }}", package: "{{ t3code_npm_package }}", version: "{{ t3code_version }}" }
-    - { name: codex, bin: "{{ codex_bin }}", package: "{{ codex_npm_package }}", version: "{{ codex_version }}" }
-    - { name: claude, bin: "{{ claude_code_bin }}", package: "{{ claude_code_npm_package }}", version: "{{ claude_code_version }}" }
-    - { name: opencode, bin: "{{ opencode_bin }}", package: "{{ opencode_npm_package }}", version: "{{ opencode_version }}" }
+  loop: "{{ agent_clis_package_manifest.dependencies | dict2items }}"
   loop_control:
     loop_var: agent_clis_cli
-    label: "{{ agent_clis_cli.name }}"
+    label: "{{ agent_clis_cli.key }}"
 
-- name: Install pinned agent CLIs
+- name: Install pinned npm CLIs
   ansible.builtin.command: >
     npm install -g --prefix /usr/local
-    {{ agent_clis_result.agent_clis_cli.package }}@{{ agent_clis_result.agent_clis_cli.version }}
+    {{ agent_clis_result.agent_clis_cli.key }}@{{ agent_clis_result.agent_clis_cli.value }}
   environment:
     PATH: "/usr/local/bin:/usr/bin:/bin"
   changed_when: true
-  when: agent_clis_result.rc != 0 or agent_clis_result.agent_clis_cli.version not in agent_clis_result.stdout
+  when: >-
+    agent_clis_result.rc != 0 or
+    agent_clis_result.agent_clis_cli.value not in agent_clis_result.stdout
   loop: "{{ agent_clis_installed.results }}"
   loop_control:
     loop_var: agent_clis_result
-    label: "{{ agent_clis_result.agent_clis_cli.package }}@{{ agent_clis_result.agent_clis_cli.version }}"
+    label: >-
+      {{ agent_clis_result.agent_clis_cli.key }}@{{ agent_clis_result.agent_clis_cli.value }}
 
 - name: Send Claude hello every four hours
   ansible.builtin.cron:
@@ -62,6 +163,6 @@
     minute: "0"
     hour: "*/4"
     job: >-
-      /usr/local/bin/{{ claude_code_bin }} auth status >/dev/null 2>&1 &&
-      /usr/local/bin/{{ claude_code_bin }} --safe-mode --tools '' --print
+      /usr/local/bin/claude auth status >/dev/null 2>&1 &&
+      /usr/local/bin/claude --safe-mode --tools '' --print
       --no-session-persistence hello >/dev/null 2>&1

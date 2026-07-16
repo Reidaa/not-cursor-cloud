@@ -14,7 +14,7 @@ verified.
 - One Hetzner Cloud server and firewall, managed by OpenTofu.
 - Ubuntu 24.04 with security updates and hardened SSH, managed by Ansible.
 - A passwordless, non-sudo `agent` account for coding tools.
-- Pinned Node.js, T3 Code, Herdr, Codex CLI, Claude Code, and OpenCode versions.
+- Pinned Node.js, mise, GitHub CLI, T3 Code, Herdr, Codex CLI, Claude Code, and OpenCode versions.
 - Tailscale SSH and Tailscale Serve; Funnel is never enabled.
 
 Review Hetzner's current pricing before applying. Running this repository
@@ -170,6 +170,7 @@ sudo crontab -u agent -l
 sudo journalctl -u cron
 ```
 
+mise is installed from the exact checksum-verified release in `versions.yml`.
 Use `mise use -g` for tools that should be available to every agent session.
 `mise install` downloads tools but does not select a version for the shims:
 
@@ -179,8 +180,9 @@ mise use -g uv just
 
 ## Authenticate GitHub
 
-The GitHub CLI is installed, but authentication and Git commit identity are
-user-specific and must be configured interactively as the `agent` user:
+The GitHub CLI is installed from the exact checksum-verified GitHub release in
+`versions.yml`. Authentication and Git commit identity are user-specific and
+must be configured interactively as the `agent` user:
 
 ```bash
 ssh admin@agent-vps.<your-tailnet>.ts.net
@@ -265,8 +267,9 @@ your tailnet, or attach with the Herdr command above.
 | `.env` | Hetzner credentials, SSH key, server settings, and optional Tailscale key |
 | `ansible/inventory/hosts.yml` | Current Ansible SSH target, generated from OpenTofu |
 
-Tracked examples document every setting. Application and runtime version pins
-live in [`versions.yml`](versions.yml).
+Tracked examples document every setting. Node.js, mise, GitHub CLI, and Herdr
+pins live in [`versions.yml`](versions.yml). Exact npm CLI versions live in
+[`package.json`](package.json), which Dependabot checks weekly.
 
 Useful commands:
 
@@ -294,6 +297,12 @@ See [SECURITY.md](SECURITY.md) for vulnerability reporting.
 
 ## Updates
 
-Review upstream release notes before changing [`versions.yml`](versions.yml),
-then run `just check`, `just configure`, and the smoke test. Upgrade the local
-Herdr client to the same pinned release before the next remote attach.
+Dependabot opens weekly pull requests for the exact npm CLI versions in
+[`package.json`](package.json). Ansible reads that file directly, so there is no
+generated version file to keep synchronized.
+
+Node.js, mise, GitHub CLI, and Herdr remain deliberate, checksum-verified pins in
+[`versions.yml`](versions.yml). Review upstream release notes before merging or
+changing any version, then run `just check`, `just configure`, and the smoke
+test. Upgrade the local Herdr client to the same pinned release before the next
+remote attach.

@@ -1,31 +1,21 @@
-# Single source of truth for pinned runtime and application versions.
-#
-# Upgrade workflow (plan Step 10):
-#   1. Change a pin here after checking the upstream release notes.
-#   2. just check
-#   3. just configure
-#   4. just smoke <admin@tailnet-host>
-#
-# Verified against the official Node.js, npm, and GitHub release metadata on
-# 2026-07-16. Upgrade deliberately using the workflow above.
+# Single source of truth for non-npm runtime and CLI versions.
+# npm CLI versions live in package.json and are updated weekly by Dependabot.
+# See the README update workflow before changing or deploying a pin.
 
 node_version: "24.18.0"
+node_checksums:
+  x64: "55aa7153f9d88f28d765fcdad5ae6945b5c0f98a36881703817e4c450fa76742"
+  arm64: "58c9520501f6ae2b52d5b210444e24b9d0c029a58c5011b797bc1fe7105886f6"
 
-t3code_npm_package: "t3"
-t3code_version: "0.0.28"
-t3code_bin: "t3"
+mise_version: "2026.7.7"
+mise_checksums:
+  x64: "0953810c2785eb4a75159f67f8b5721c4f3c80b8a6a812015d5af7d7fbd1b8a4"
+  arm64: "c4e542b53a15d2ec641e072f7b2d9da8a0554b92fd2c09a51febde32c6080ab8"
 
-codex_npm_package: "@openai/codex"
-codex_version: "0.144.4"
-codex_bin: "codex"
-
-claude_code_npm_package: "@anthropic-ai/claude-code"
-claude_code_version: "2.1.210"
-claude_code_bin: "claude"
-
-opencode_npm_package: "opencode-ai"
-opencode_version: "1.18.1"
-opencode_bin: "opencode"
+github_cli_version: "2.96.0"
+github_cli_checksums:
+  amd64: "83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60"
+  arm64: "06f86ec7103d41993b76cd78072f43595c34aaa56506d971d9860e67140bf909"
 
 herdr_version: "0.7.4"
 herdr_bin: "herdr"

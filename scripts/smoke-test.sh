@@ -49,7 +49,9 @@ check "Herdr config file is private"        "test \"\$(sudo stat -c %a '$agent_h
 check "Herdr has no system service"         "! systemctl cat herdr >/dev/null 2>&1"
 check "Herdr has no TCP listener"           "! sudo ss -ltnp | grep -q herdr"
 check_agent "agent Tailscale SSH works"     "test \"\$(id -un)\" = '$agent_user'"
+check_agent "mise is active for the agent"  "bash -ic 'declare -F mise >/dev/null && mise --version'"
 check_agent "agent resolves managed Herdr"  "test \"\$(command -v herdr)\" = /usr/local/bin/herdr"
+check_agent "agent resolves managed gh"     "test \"\$(command -v gh)\" = /usr/local/bin/gh"
 check_agent "agent workspace is writable"   "test -w /srv/agent/workspaces"
 check "cron service is active"               systemctl is-active cron
 check "cron service is enabled"              systemctl is-enabled cron
