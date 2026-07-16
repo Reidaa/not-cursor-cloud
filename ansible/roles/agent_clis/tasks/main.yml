@@ -54,3 +54,14 @@
   loop_control:
     loop_var: agent_clis_result
     label: "{{ agent_clis_result.agent_clis_cli.package }}@{{ agent_clis_result.agent_clis_cli.version }}"
+
+- name: Send Claude hello every four hours
+  ansible.builtin.cron:
+    name: Send Claude hello every four hours
+    user: "{{ agent_user }}"
+    minute: "0"
+    hour: "*/4"
+    job: >-
+      /usr/local/bin/{{ claude_code_bin }} auth status >/dev/null 2>&1 &&
+      /usr/local/bin/{{ claude_code_bin }} --safe-mode --tools '' --print
+      --no-session-persistence hello >/dev/null 2>&1

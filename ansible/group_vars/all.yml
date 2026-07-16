@@ -31,5 +31,6 @@ base_packages:
   - build-essential
   - htop
   - tmux
+  - cron
   - logrotate
   - gh

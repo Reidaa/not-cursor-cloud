@@ -160,6 +160,24 @@ opencode auth login
 
 Substitute the configured `AGENT_USER` if you changed the default.
 
+Once Claude Code is authenticated, cron sends the non-persistent prompt `hello`
+every four hours. Before authentication, each scheduled run exits without
+making a request. The scheduled invocation disables project customizations and
+tools, and each successful run consumes Claude usage. Inspect the managed
+crontab and cron activity with:
+
+```bash
+sudo crontab -u agent -l
+sudo journalctl -u cron
+```
+
+Use `mise use -g` for tools that should be available to every agent session.
+`mise install` downloads tools but does not select a version for the shims:
+
+```bash
+mise use -g uv just
+```
+
 ## Authenticate GitHub
 
 The GitHub CLI is installed, but authentication and Git commit identity are
