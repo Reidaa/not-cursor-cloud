@@ -18,6 +18,6 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: pre-commit
-    directory: /tofu
+    directory: /
     schedule:
       interval: weekly
