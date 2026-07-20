@@ -7,10 +7,10 @@ agent_user: "{{ lookup('ansible.builtin.env', 'AGENT_USER') | default('agent', t
 agent_home: "/home/{{ agent_user }}"
 
 # Directory layout
-agent_root: /srv/agent
+agent_root: "{{ agent_home }}"
 agent_workspaces: "{{ agent_root }}/workspaces"
-agent_cache: "{{ agent_root }}/cache"
-agent_state: "{{ agent_root }}/state"
+agent_cache: "{{ agent_root }}/.cache"
+agent_state: "{{ agent_root }}/.state"
 
 # T3 Code service
 t3code_bin: t3

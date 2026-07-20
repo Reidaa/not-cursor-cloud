@@ -23,9 +23,7 @@ if [[ ! "$admin_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
   exit 1
 fi
 
-if [ ! -f "$inventory" ]; then
-  cp "$example" "$inventory"
-fi
+cp "$example" "$inventory"
 
 grep -q '^[[:space:]]*ansible_host:' "$inventory"
 grep -q '^[[:space:]]*ansible_user:' "$inventory"

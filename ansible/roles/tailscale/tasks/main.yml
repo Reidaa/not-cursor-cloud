@@ -68,6 +68,5 @@
          sudo tailscale up --hostname {{ tailscale_hostname }} --ssh
          exit
 
-      3. Back on your local machine, finish configuration:
-         just configure
+      3. Back on your local machine, rerun the playbook.
   when: tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'

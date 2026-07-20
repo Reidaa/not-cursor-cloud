@@ -1,6 +1,6 @@
 ---
-- name: Configure agent VPS
-  hosts: agent_vps
+- name: Configure DevBoxes
+  hosts: devboxes
   become: true
   vars_files:
     - ../versions.yml

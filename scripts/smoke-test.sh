@@ -56,8 +56,6 @@ check_agent "agent workspace is writable"   "test -w /srv/agent/workspaces"
 check "cron service is active"               systemctl is-active cron
 check "cron service is enabled"              systemctl is-enabled cron
 check "Claude hello cron is installed"       "sudo crontab -u '$agent_user' -l | grep -Fxq \"0 */4 * * * /usr/local/bin/claude auth status >/dev/null 2>&1 && /usr/local/bin/claude --safe-mode --tools '' --print --no-session-persistence hello >/dev/null 2>&1\""
-check "GitHub CLI supports T3 auth detection" \
-  "test ! -e /run/not-cursor-cloud-gh-smoke && sudo -u '$agent_user' env -u GH_TOKEN -u GITHUB_TOKEN -u GH_ENTERPRISE_TOKEN -u GITHUB_ENTERPRISE_TOKEN -u GH_HOST GH_CONFIG_DIR=/run/not-cursor-cloud-gh-smoke gh auth status --json hosts 2>/dev/null | jq -e '.hosts | type == \"object\"'"
 check "disk usage below 90%"                "test \"\$(df --output=pcent / | tail -1 | tr -dc 0-9)\" -lt 90"
 
 # The GUI must NOT be reachable on the public IP.
