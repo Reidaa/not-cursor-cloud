@@ -1,9 +1,9 @@
 # not-cursor-cloud
 
 An opinionated, self-hosted remote coding agent on a Hetzner VPS. It installs
-T3 Code, Herdr, Codex CLI, Claude Code, and OpenCode. The T3 Code web interface
-is private through Tailscale Serve; Herdr connects on demand through Tailscale
-SSH without exposing an application port.
+T3 Code, CLIProxyAPI, Herdr, Codex CLI, Claude Code, and OpenCode. T3 Code and
+CLIProxyAPI are private through Tailscale Serve; Herdr connects on demand
+through Tailscale SSH without exposing an application port.
 
 The application never listens on a public interface. Public SSH is restricted
 to your current IP during bootstrap and should be removed after Tailscale is
@@ -14,8 +14,8 @@ verified.
 - One Hetzner Cloud server and firewall, managed by OpenTofu.
 - Ubuntu 24.04 with security updates and hardened SSH, managed by Ansible.
 - A passwordless, non-sudo `agent` account for coding tools.
-- Pinned Node.js, mise, GitHub CLI, T3 Code, Herdr, Codex CLI, Claude Code, and OpenCode versions.
-- Tailscale SSH and Tailscale Serve; Funnel is never enabled.
+- Pinned Node.js, mise, GitHub CLI, T3 Code, CLIProxyAPI, Herdr, Codex CLI, Claude Code, and OpenCode versions.
+- Tailscale SSH and private HTTPS routes for T3 Code and CLIProxyAPI; Funnel is never enabled.
 
 Review Hetzner's current pricing before applying. Running this repository
 creates paid infrastructure.
@@ -52,7 +52,8 @@ cd not-cursor-cloud
 just setup
 ```
 
-Edit `.env` and replace every placeholder. In particular, restrict
+Edit `.env` and replace every placeholder. Set the CLIProxyAPI client key and
+management bcrypt verifier as described below, and restrict
 `TF_VAR_bootstrap_ssh_source_ips` to your current public IPv4 address with a
 `/32` suffix. Then run:
 
@@ -97,6 +98,87 @@ Restrict your tailnet policy so only your identity can reach this node. Public
 SSH closure is not automated yet; until a safely isolated workflow is designed,
 keep `TF_VAR_bootstrap_ssh_source_ips` restricted to your own IPv4 `/32` and
 review every OpenTofu plan before applying it.
+
+## Use CLIProxyAPI from your laptop
+
+CLIProxyAPI listens on the DevBox loopback interface. Tailscale Serve exposes a
+separate private HTTPS listener without changing T3 Code's port 443 route:
+
+```text
+https://agent-vps.<your-tailnet>.ts.net:8317/v1
+```
+
+Only devices allowed by your tailnet policy can reach this address. Port 8317 is
+not open in the Hetzner firewall, and Funnel is disabled. Clients must also send
+the key from `CLIPROXYAPI_API_KEY`:
+
+```bash
+curl --fail --silent --show-error \
+  --header "Authorization: Bearer <client-key>" \
+  https://agent-vps.<your-tailnet>.ts.net:8317/v1/models
+```
+
+### Use the management panel
+
+The panel uses a separate management key. Generate a random plaintext key and
+save it in a password manager:
+
+```bash
+openssl rand -hex 32
+```
+
+Create its bcrypt verifier without putting the plaintext in shell history:
+
+```bash
+uv run --with bcrypt python -c \
+  'import bcrypt, getpass; print(bcrypt.hashpw(getpass.getpass("Management key: ").encode(), bcrypt.gensalt()).decode())'
+```
+
+Paste the plaintext key at the prompt, then put only the printed verifier in
+`.env`. Use single quotes so the dollar signs remain literal:
+
+```dotenv
+CLIPROXYAPI_MANAGEMENT_KEY_BCRYPT='$2b$12$replace-with-the-complete-verifier'
+```
+
+Open the panel from a device allowed by your tailnet policy:
+
+```text
+https://agent-vps.<your-tailnet>.ts.net:8317/management.html
+```
+
+Log in with the plaintext key from the password manager, not the bcrypt verifier
+or `CLIPROXYAPI_API_KEY`. Tailscale Serve forwards the laptop address, so the
+role permits remote management requests. The service still listens only on
+`127.0.0.1`, Tailscale controls network access, Funnel stays off, and every
+management request requires the separate key.
+
+Ansible installs a pinned, checksum-verified panel and keeps both the panel and
+CLIProxyAPI config read-only to the service. Change managed settings or panel
+versions in this repository, then rerun `just configure`; panel config edits are
+not authoritative.
+
+Provider OAuth credentials belong to the unprivileged `agent` account and stay
+in `~agent/.cli-proxy-api`; Ansible does not replace or remove them. For example,
+Claude login on the remote server needs an SSH tunnel for its local callback.
+Open the tunnel from your laptop:
+
+```bash
+ssh -L 54545:127.0.0.1:54545 admin@agent-vps.<your-tailnet>.ts.net
+```
+
+Then run the login in that remote session and open the printed URL on your
+laptop:
+
+```bash
+sudo -iu agent
+cli-proxy-api --config ~/.config/cli-proxy-api/config.yaml \
+  --claude-login --no-browser
+```
+
+Other providers use their own login flag and callback port; follow the
+[CLIProxyAPI provider guides](https://help.router-for.me/configuration/provider/claude-code)
+when adding them.
 
 ## Pair a T3 Code client
 
@@ -264,13 +346,14 @@ your tailnet, or attach with the Herdr command above.
 
 | File | Purpose |
 | --- | --- |
-| `.env` | Hetzner credentials, SSH key, server settings, and optional Tailscale key |
+| `.env` | Hetzner credentials, CLIProxyAPI client key and management verifier, SSH key, server settings, and optional Tailscale key |
 | `ansible/inventory/hosts.yml` | Current Ansible SSH target, generated from OpenTofu |
 
-Tracked examples document every setting. Node.js, mise, GitHub CLI, and Herdr
-pins live in [`versions.yml`](versions.yml). Their checksum-verified releases are
-managed by dedicated Ansible roles; `agent_clis` manages the `package.json`-driven
-npm CLIs and Claude cron job. Exact npm CLI versions live in
+Tracked examples document every setting. Node.js, mise, GitHub CLI, Herdr,
+CLIProxyAPI, and its management panel pins live in
+[`versions.yml`](versions.yml). Their checksum-verified releases are managed by
+dedicated Ansible roles; `agent_clis` manages the
+`package.json`-driven npm CLIs and Claude cron job. Exact npm CLI versions live in
 [`package.json`](package.json), which Dependabot checks weekly.
 
 Useful commands:
@@ -278,7 +361,7 @@ Useful commands:
 ```bash
 just                 # list commands
 just plan            # preview infrastructure changes
-just update-inventory # restore the public-IP bootstrap target from OpenTofu
+just update-inventory # refresh the Ansible target (tailnet address, public IP before Tailscale enrollment)
 just check            # Ansible dry run
 just lint             # run repository checks
 just destroy          # permanently destroy the VPS
@@ -303,8 +386,8 @@ Dependabot opens weekly pull requests for the exact npm CLI versions in
 [`package.json`](package.json). Ansible reads that file directly, so there is no
 generated version file to keep synchronized.
 
-Node.js, mise, GitHub CLI, and Herdr remain deliberate, checksum-verified pins in
-[`versions.yml`](versions.yml). Review upstream release notes before merging or
-changing any version, then run `just check`, `just configure`, and the smoke
-test. Upgrade the local Herdr client to the same pinned release before the next
-remote attach.
+Node.js, mise, GitHub CLI, Herdr, CLIProxyAPI, and its management panel remain
+deliberate, checksum-verified pins in [`versions.yml`](versions.yml). Review
+upstream release notes and checksums before changing any version, then run `just check`,
+`just configure`, and the smoke test. Upgrade the local Herdr client to the same
+pinned release before the next remote attach.

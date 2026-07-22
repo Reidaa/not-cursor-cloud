@@ -23,7 +23,6 @@
     group: "{{ agent_user }}"
     mode: "0750"
   loop:
-    - "{{ agent_root }}"
     - "{{ agent_workspaces }}"
     - "{{ agent_cache }}"
     - "{{ agent_state }}"

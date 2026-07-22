@@ -9,6 +9,7 @@
     - security
     - tailscale
     - agent_user
+    - cliproxyapi
     - nodejs
     - mise
     - github_cli

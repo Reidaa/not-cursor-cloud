@@ -1,3 +1,4 @@
+---
 extends: default
 
 ignore:
@@ -5,10 +6,14 @@ ignore:
 
 rules:
   line-length: disable
-  document-start: disable
+  document-start: enable
   braces:
     max-spaces-inside: 1
   truthy:
     allowed-values: ["true", "false"]
   comments:
     min-spaces-from-content: 1
+  comments-indentation: disable
+  octal-values:
+    forbid-explicit-octal: true
+    forbid-implicit-octal: true

@@ -26,14 +26,13 @@
 
 - name: Install pinned npm CLIs
   ansible.builtin.command: >
-    npm install -g --prefix /usr/local
-    {{ agent_clis_result.agent_clis_cli.key }}@{{ agent_clis_result.agent_clis_cli.value }}
+    npm install -g --prefix /usr/local {{ agent_clis_result.agent_clis_cli.key }}@{{ agent_clis_result.agent_clis_cli.value }}
+
   environment:
     PATH: "/usr/local/bin:/usr/bin:/bin"
   changed_when: true
   when: >-
-    agent_clis_result.rc != 0 or
-    agent_clis_result.agent_clis_cli.value not in agent_clis_result.stdout
+    agent_clis_result.rc != 0 or agent_clis_result.agent_clis_cli.value not in agent_clis_result.stdout
   loop: "{{ agent_clis_installed.results }}"
   loop_control:
     loop_var: agent_clis_result
@@ -47,6 +46,4 @@
     minute: "0"
     hour: "*/4"
     job: >-
-      /usr/local/bin/claude auth status >/dev/null 2>&1 &&
-      /usr/local/bin/claude --safe-mode --tools '' --print
-      --no-session-persistence hello >/dev/null 2>&1
+      /usr/local/bin/claude auth status >/dev/null 2>&1 && /usr/local/bin/claude --safe-mode --tools '' --print --no-session-persistence hello >/dev/null 2>&1

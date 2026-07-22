@@ -86,6 +86,8 @@ smoke host:
 
 fmt:
     tofu -chdir={{ tofu_dir }} fmt
+    shfmt -w scripts
+    uv run ansible-lint --fix ansible
 
 lint:
     tofu -chdir={{ tofu_dir }} fmt -check -diff
@@ -96,3 +98,8 @@ lint:
 
 pre-commit:
     uv run pre-commit run --all-files
+
+bcrypt-ing:
+    #!/usr/bin/env -S uv run --with bcrypt --script
+    import bcrypt, getpass;
+    print(bcrypt.hashpw(getpass.getpass("input: ").encode(), bcrypt.gensalt()).decode())

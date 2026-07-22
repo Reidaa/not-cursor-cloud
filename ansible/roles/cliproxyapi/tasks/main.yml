@@ -1,0 +1,280 @@
+---
+- name: Require CLIProxyAPI client API key
+  ansible.builtin.assert:
+    that: cliproxyapi_api_key | trim | length > 0
+    fail_msg: >-
+      CLIPROXYAPI_API_KEY is empty. Set it in .env before configuring the DevBox.
+    quiet: true
+
+- name: Check CLIProxyAPI architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Select CLIProxyAPI release architecture
+  ansible.builtin.set_fact:
+    cliproxyapi_release_architecture: >-
+      {{ {'x86_64': 'amd64', 'aarch64': 'aarch64'}[ansible_architecture] }}
+
+- name: Download pinned CLIProxyAPI archive
+  ansible.builtin.get_url:
+    url: >-
+      {{ 'https://github.com/router-for-me/CLIProxyAPI/releases/download/v'
+         ~ cliproxyapi_version ~ '/CLIProxyAPI_' ~ cliproxyapi_version
+         ~ '_linux_' ~ cliproxyapi_release_architecture ~ '_no-plugin.tar.gz' }}
+    dest: >-
+      /opt/CLIProxyAPI_{{ cliproxyapi_version }}_linux_{{ cliproxyapi_release_architecture }}_no-plugin.tar.gz
+    checksum: "sha256:{{ cliproxyapi_release_sha256[cliproxyapi_release_architecture] }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Create CLIProxyAPI release directory
+  ansible.builtin.file:
+    path: >-
+      /opt/cliproxyapi-{{ cliproxyapi_version }}-linux-{{ cliproxyapi_release_architecture }}
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Extract pinned CLIProxyAPI
+  ansible.builtin.unarchive:
+    src: >-
+      /opt/CLIProxyAPI_{{ cliproxyapi_version }}_linux_{{ cliproxyapi_release_architecture }}_no-plugin.tar.gz
+    dest: >-
+      /opt/cliproxyapi-{{ cliproxyapi_version }}-linux-{{ cliproxyapi_release_architecture }}
+    remote_src: true
+    creates: >-
+      /opt/cliproxyapi-{{ cliproxyapi_version }}-linux-{{ cliproxyapi_release_architecture }}/cli-proxy-api
+  when: not ansible_check_mode
+
+- name: Symlink CLIProxyAPI binary
+  ansible.builtin.file:
+    src: >-
+      /opt/cliproxyapi-{{ cliproxyapi_version }}-linux-{{ cliproxyapi_release_architecture }}/cli-proxy-api
+    dest: "/usr/local/bin/{{ cliproxyapi_bin }}"
+    state: link
+  notify: Restart cliproxyapi
+  when: not ansible_check_mode
+
+- name: Verify installed CLIProxyAPI version
+  ansible.builtin.command: "/usr/local/bin/{{ cliproxyapi_bin }} --help"
+  register: cliproxyapi_installed_version
+  changed_when: false
+  failed_when: >-
+    cliproxyapi_installed_version.rc != 0 or cliproxyapi_version not in (cliproxyapi_installed_version.stdout ~ cliproxyapi_installed_version.stderr)
+  when: not ansible_check_mode
+
+- name: Create agent configuration root
+  ansible.builtin.file:
+    path: "{{ agent_home }}/.config"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+
+- name: Create CLIProxyAPI configuration directory
+  ansible.builtin.file:
+    path: "{{ cliproxyapi_config_dir }}"
+    state: directory
+    owner: root
+    group: "{{ agent_user }}"
+    mode: "0750"
+
+- name: Create CLIProxyAPI authentication directory
+  ansible.builtin.file:
+    path: "{{ cliproxyapi_auth_dir }}"
+    state: directory
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0700"
+
+- name: Check CLIProxyAPI panel directory
+  ansible.builtin.stat:
+    path: "{{ cliproxyapi_panel_dir }}"
+  register: cliproxyapi_panel_directory
+
+- name: Create CLIProxyAPI panel directory
+  ansible.builtin.file:
+    path: "{{ cliproxyapi_panel_dir }}"
+    state: directory
+    owner: root
+    group: "{{ agent_user }}"
+    mode: "0750"
+
+- name: Download pinned CLIProxyAPI management panel
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/router-for-me/Cli-Proxy-API-Management-Center/releases/download/v{{ cliproxyapi_panel_version }}/management.html
+    dest: "{{ cliproxyapi_panel_file }}"
+    checksum: "sha256:{{ cliproxyapi_panel_sha256 }}"
+    owner: root
+    group: "{{ agent_user }}"
+    mode: "0640"
+  when:
+    - not ansible_check_mode or cliproxyapi_panel_directory.stat.exists
+
+- name: Install CLIProxyAPI configuration
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: "{{ cliproxyapi_config_file }}"
+    owner: root
+    group: "{{ agent_user }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart cliproxyapi
+
+- name: Install CLIProxyAPI systemd service
+  ansible.builtin.template:
+    src: cliproxyapi.service.j2
+    dest: /etc/systemd/system/cliproxyapi.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart cliproxyapi
+
+- name: Enable and start CLIProxyAPI
+  ansible.builtin.systemd_service:
+    name: cliproxyapi
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: not ansible_check_mode
+
+- name: Read Tailscale Serve status for CLIProxyAPI
+  ansible.builtin.command: tailscale serve status --json
+  register: cliproxyapi_serve_status
+  changed_when: false
+  check_mode: false
+  when:
+    - tailscale_state.rc == 0
+    - (tailscale_state.stdout | from_json).BackendState == 'Running'
+
+- name: Parse Tailscale Serve status for CLIProxyAPI
+  ansible.builtin.set_fact:
+    cliproxyapi_serve_config: "{{ cliproxyapi_serve_status.stdout | from_json }}"
+  when: cliproxyapi_serve_status is not skipped
+
+- name: Select Tailscale Serve entries for CLIProxyAPI
+  ansible.builtin.set_fact:
+    cliproxyapi_serve_tcp: >-
+      {{ cliproxyapi_serve_config.get('TCP', {}).get(cliproxyapi_port | string) }}
+    cliproxyapi_serve_web_entries: >-
+      {{ cliproxyapi_serve_config.get('Web', {}) | dict2items
+         | selectattr('key', 'match', '.*:' ~ (cliproxyapi_port | string) ~ '$')
+         | list }}
+    cliproxyapi_serve_funnel_entries: >-
+      {{ cliproxyapi_serve_config.get('AllowFunnel', {}) | dict2items
+         | selectattr('key', 'match', '.*:' ~ (cliproxyapi_port | string) ~ '$')
+         | list }}
+  when: cliproxyapi_serve_status is not skipped
+
+- name: Classify Tailscale Serve listener for CLIProxyAPI
+  ansible.builtin.set_fact:
+    cliproxyapi_serve_is_configured: >-
+      {{
+        cliproxyapi_serve_tcp == {'HTTPS': true}
+        and cliproxyapi_serve_web_entries | length == 1
+        and cliproxyapi_serve_web_entries[0].value
+          == {'Handlers': {'/': {'Proxy': 'http://' ~ cliproxyapi_host ~ ':' ~ (cliproxyapi_port | string)}}}
+        and cliproxyapi_serve_funnel_entries | length == 0
+      }}
+    cliproxyapi_serve_port_in_use: >-
+      {{
+        (cliproxyapi_port | string) in cliproxyapi_serve_config.get('TCP', {})
+        or cliproxyapi_serve_web_entries | length > 0
+        or cliproxyapi_serve_funnel_entries | length > 0
+      }}
+  when: cliproxyapi_serve_status is not skipped
+
+- name: Refuse to replace another Tailscale Serve listener
+  ansible.builtin.assert:
+    that:
+      - cliproxyapi_serve_is_configured or not cliproxyapi_serve_port_in_use
+    fail_msg: >-
+      Tailscale Serve port {{ cliproxyapi_port }} already has another configuration. Remove it manually before configuring CLIProxyAPI.
+  when: cliproxyapi_serve_status is not skipped
+
+- name: Expose CLIProxyAPI privately via Tailscale Serve
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - serve
+      - --yes
+      - --bg
+      - "--https={{ cliproxyapi_port }}"
+      - "http://{{ cliproxyapi_host }}:{{ cliproxyapi_port }}"
+  register: cliproxyapi_serve_result
+  changed_when: cliproxyapi_serve_result.rc == 0
+  failed_when: >-
+    cliproxyapi_serve_result.rc != 0 and 'TLS certificate support is not enabled/configured' not in cliproxyapi_serve_result.stderr
+  when:
+    - cliproxyapi_serve_status is not skipped
+    - not cliproxyapi_serve_is_configured
+    - not cliproxyapi_serve_port_in_use
+
+- name: Explain manual Tailscale HTTPS approval for CLIProxyAPI
+  ansible.builtin.debug:
+    msg: |
+      Tailscale Serve requires one-time HTTPS approval for this tailnet.
+
+      1. On your local machine, connect to the VPS:
+         ssh {{ ansible_user }}@{{ ansible_host }}
+
+      2. Start the interactive approval flow:
+         sudo tailscale serve --bg --https={{ cliproxyapi_port }} http://{{ cliproxyapi_host }}:{{ cliproxyapi_port }}
+
+      3. Open the URL shown by Tailscale, enable HTTPS, and leave Funnel disabled.
+
+      4. Back on your local machine, finish configuration:
+         just configure
+  when:
+    - cliproxyapi_serve_result is defined
+    - not (cliproxyapi_serve_result.skipped | default(false))
+    - (cliproxyapi_serve_result.rc | default(0)) != 0
+
+- name: Refresh Tailscale Serve status for CLIProxyAPI
+  ansible.builtin.command: tailscale serve status --json
+  register: cliproxyapi_serve_refreshed_status
+  changed_when: false
+  check_mode: false
+  when:
+    - cliproxyapi_serve_status is not skipped
+    - >-
+      cliproxyapi_serve_is_configured or (
+        not ansible_check_mode
+        and not (cliproxyapi_serve_result.skipped | default(false))
+        and (cliproxyapi_serve_result.rc | default(1)) == 0
+      )
+
+- name: Verify Tailscale Serve listener for CLIProxyAPI
+  ansible.builtin.assert:
+    that:
+      - >-
+        cliproxyapi_serve_refreshed_config.get('TCP', {}).get(cliproxyapi_port | string) == {'HTTPS': true}
+      - cliproxyapi_serve_refreshed_web_entries | length == 1
+      - >-
+        cliproxyapi_serve_refreshed_web_entries[0].value == {'Handlers': {'/': {'Proxy': 'http://' ~ cliproxyapi_host ~ ':' ~ (cliproxyapi_port | string)}}}
+      - cliproxyapi_serve_refreshed_funnel_entries | length == 0
+    fail_msg: >-
+      Tailscale Serve did not retain the expected private CLIProxyAPI listener.
+  vars:
+    cliproxyapi_serve_refreshed_config: >-
+      {{ cliproxyapi_serve_refreshed_status.stdout | from_json }}
+    cliproxyapi_serve_refreshed_web_entries: >-
+      {{ cliproxyapi_serve_refreshed_config.get('Web', {}) | dict2items
+         | selectattr('key', 'match', '.*:' ~ (cliproxyapi_port | string) ~ '$')
+         | list }}
+    cliproxyapi_serve_refreshed_funnel_entries: >-
+      {{ cliproxyapi_serve_refreshed_config.get('AllowFunnel', {}) | dict2items
+         | selectattr('key', 'match', '.*:' ~ (cliproxyapi_port | string) ~ '$')
+         | list }}
+  when: cliproxyapi_serve_refreshed_status is not skipped
+
+- name: Report CLIProxyAPI Tailscale Serve setup deferred until enrollment
+  ansible.builtin.debug:
+    msg: >-
+      CLIProxyAPI Tailscale Serve setup is deferred until the remote VPS is enrolled. Enroll Tailscale, then run `just configure` again.
+  when:
+    - tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'

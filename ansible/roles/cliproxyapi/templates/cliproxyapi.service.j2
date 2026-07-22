@@ -1,0 +1,31 @@
+[Unit]
+Description=CLIProxyAPI (localhost only, exposed via Tailscale Serve)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ agent_user }}
+Group={{ agent_user }}
+WorkingDirectory={{ cliproxyapi_config_dir }}
+Environment=HOME={{ agent_home }}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=MANAGEMENT_STATIC_PATH={{ cliproxyapi_panel_file }}
+ExecStart=/usr/local/bin/{{ cliproxyapi_bin }} --config {{ cliproxyapi_config_file }}
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths={{ cliproxyapi_auth_dir }}
+
+[Install]
+WantedBy=multi-user.target

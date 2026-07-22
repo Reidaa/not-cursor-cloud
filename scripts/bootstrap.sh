@@ -23,16 +23,16 @@ admin_user="$(tofu -chdir="$repo_root/tofu" output -raw admin_user)"
 echo "==> Waiting for SSH (cloud-init may reboot the host once)"
 ssh_ready=false
 for _ in $(seq 1 60); do
-  if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
-      "$admin_user@$ip" true 2>/dev/null; then
-    ssh_ready=true
-    break
-  fi
-  sleep 10
+	if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
+		"$admin_user@$ip" true 2>/dev/null; then
+		ssh_ready=true
+		break
+	fi
+	sleep 10
 done
 if ! $ssh_ready; then
-  echo "SSH did not become ready at $admin_user@$ip after 10 minutes" >&2
-  exit 1
+	echo "SSH did not become ready at $admin_user@$ip after 10 minutes" >&2
+	exit 1
 fi
 
 echo "==> Running Ansible against $admin_user@$ip"

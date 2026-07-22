@@ -7,64 +7,121 @@ host="${1:?usage: smoke-test.sh <ssh-host>}"
 agent_user="${AGENT_USER:-agent}"
 agent_host="${host#*@}"
 agent_home="/home/$agent_user"
+cliproxyapi_panel_dir="$agent_home/.state/cli-proxy-api-panel"
 fail=0
 
 if [[ ! "$agent_user" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
-  echo "Invalid AGENT_USER: $agent_user" >&2
-  exit 1
+	echo "Invalid AGENT_USER: $agent_user" >&2
+	exit 1
 fi
 
 check() {
-  local desc="$1"; shift
-  if ssh -o BatchMode=yes "$host" "$@" >/dev/null 2>&1; then
-    echo "PASS  $desc"
-  else
-    echo "FAIL  $desc"
-    fail=1
-  fi
+	local desc="$1"
+	shift
+	if ssh -o BatchMode=yes "$host" "$@" >/dev/null 2>&1; then
+		echo "PASS  $desc"
+	else
+		echo "FAIL  $desc"
+		fail=1
+	fi
 }
 
 check_agent() {
-  local desc="$1"; shift
-  if ssh -o BatchMode=yes -l "$agent_user" "$agent_host" "$@" >/dev/null 2>&1; then
-    echo "PASS  $desc"
-  else
-    echo "FAIL  $desc"
-    fail=1
-  fi
+	local desc="$1"
+	shift
+	if ssh -o BatchMode=yes -l "$agent_user" "$agent_host" "$@" >/dev/null 2>&1; then
+		echo "PASS  $desc"
+	else
+		echo "FAIL  $desc"
+		fail=1
+	fi
 }
 
-check "t3code service is active"            systemctl is-active t3code
-check "t3code service is enabled"           systemctl is-enabled t3code
-check "T3 Code answers on localhost"        curl --fail --silent http://127.0.0.1:3773
-check "tailscaled is active"                systemctl is-active tailscaled
-check "Tailscale Serve is configured"       "tailscale serve status | grep -q 3773"
-check "agent user exists"                   "id '$agent_user'"
-check "agent user has no sudo"              "id '$agent_user' >/dev/null && ! sudo -l -U '$agent_user' | grep -q 'may run'"
-check "OpenCode CLI is installed"           "sudo -u '$agent_user' opencode --version"
-check "Herdr CLI is installed"              "sudo -u '$agent_user' -H /usr/local/bin/herdr --version"
-check "Herdr config belongs to agent"       "test \"\$(sudo stat -c %U:%G '$agent_home/.config/herdr/config.toml')\" = '$agent_user:$agent_user'"
-check "Herdr config directory is private"   "test \"\$(sudo stat -c %a '$agent_home/.config/herdr')\" = 700"
-check "Herdr config file is private"        "test \"\$(sudo stat -c %a '$agent_home/.config/herdr/config.toml')\" = 600"
-check "Herdr has no system service"         "! systemctl cat herdr >/dev/null 2>&1"
-check "Herdr has no TCP listener"           "! sudo ss -ltnp | grep -q herdr"
-check_agent "agent Tailscale SSH works"     "test \"\$(id -un)\" = '$agent_user'"
-check_agent "mise is active for the agent"  "bash -ic 'declare -F mise >/dev/null && mise --version'"
-check_agent "agent resolves managed Herdr"  "test \"\$(command -v herdr)\" = /usr/local/bin/herdr"
-check_agent "agent resolves managed gh"     "test \"\$(command -v gh)\" = /usr/local/bin/gh"
-check_agent "agent workspace is writable"   "test -w /srv/agent/workspaces"
-check "cron service is active"               systemctl is-active cron
-check "cron service is enabled"              systemctl is-enabled cron
-check "Claude hello cron is installed"       "sudo crontab -u '$agent_user' -l | grep -Fxq \"0 */4 * * * /usr/local/bin/claude auth status >/dev/null 2>&1 && /usr/local/bin/claude --safe-mode --tools '' --print --no-session-persistence hello >/dev/null 2>&1\""
-check "disk usage below 90%"                "test \"\$(df --output=pcent / | tail -1 | tr -dc 0-9)\" -lt 90"
+check "t3code service is active" systemctl is-active t3code
+check "t3code service is enabled" systemctl is-enabled t3code
+check "T3 Code answers on localhost" curl --fail --silent http://127.0.0.1:3773
+check "CLIProxyAPI service is active" systemctl is-active cliproxyapi
+check "CLIProxyAPI service is enabled" systemctl is-enabled cliproxyapi
+check "CLIProxyAPI requires authentication" "test \"\$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:8317/v1/models)\" = 401"
+check "CLIProxyAPI listens on loopback only" "sudo ss -ltnH | grep -Eq '127\\.0\\.0\\.1:8317([[:space:]]|$)' && ! sudo ss -ltnH | grep -Eq '(0\\.0\\.0\\.0|\\*|\\[::\\]):8317([[:space:]]|$)'"
+check "CLIProxyAPI config is read-only" "test \"\$(sudo stat -c %U:%G '$agent_home/.config/cli-proxy-api/config.yaml')\" = 'root:$agent_user'"
+check "CLIProxyAPI config dir is private" "test \"\$(sudo stat -c %a '$agent_home/.config/cli-proxy-api')\" = 750"
+check "CLIProxyAPI config file is private" "test \"\$(sudo stat -c %a '$agent_home/.config/cli-proxy-api/config.yaml')\" = 640"
+check "CLIProxyAPI auth dir is private" "test \"\$(sudo stat -c %a '$agent_home/.cli-proxy-api')\" = 700"
+check "CLIProxyAPI panel is read-only" "test \"\$(sudo stat -c %U:%G '$cliproxyapi_panel_dir/management.html')\" = 'root:$agent_user'"
+check "CLIProxyAPI panel dir is private" "test \"\$(sudo stat -c %a '$cliproxyapi_panel_dir')\" = 750"
+check "CLIProxyAPI panel file is private" "test \"\$(sudo stat -c %a '$cliproxyapi_panel_dir/management.html')\" = 640"
+check "tailscaled is active" systemctl is-active tailscaled
+check "T3 Code Serve is configured" "tailscale serve status | grep -q 3773"
+check "CLIProxyAPI Serve is private" "tailscale serve status --json | jq -e '
+  .TCP[\"8317\"] == {\"HTTPS\": true} and
+  ([((.Web // {}) | to_entries[]) | select(.key | endswith(\":8317\"))] | length) == 1 and
+  ([((.Web // {}) | to_entries[]) | select(.key | endswith(\":8317\"))] | .[0].value.Handlers) == {\"/\": {\"Proxy\": \"http://127.0.0.1:8317\"}} and
+  ([((.AllowFunnel // {}) | to_entries[]) | select(.key | endswith(\":8317\"))] | length) == 0
+' >/dev/null"
+check "agent user exists" "id '$agent_user'"
+check "agent user has no sudo" "id '$agent_user' >/dev/null && ! sudo -l -U '$agent_user' | grep -q 'may run'"
+check "OpenCode CLI is installed" "sudo -u '$agent_user' opencode --version"
+check "Herdr CLI is installed" "sudo -u '$agent_user' -H /usr/local/bin/herdr --version"
+check "Herdr config belongs to agent" "test \"\$(sudo stat -c %U:%G '$agent_home/.config/herdr/config.toml')\" = '$agent_user:$agent_user'"
+check "Herdr config directory is private" "test \"\$(sudo stat -c %a '$agent_home/.config/herdr')\" = 700"
+check "Herdr config file is private" "test \"\$(sudo stat -c %a '$agent_home/.config/herdr/config.toml')\" = 600"
+check "Herdr has no system service" "! systemctl cat herdr >/dev/null 2>&1"
+check "Herdr has no TCP listener" "! sudo ss -ltnp | grep -q herdr"
+check_agent "agent Tailscale SSH works" "test \"\$(id -un)\" = '$agent_user'"
+check_agent "mise is active for the agent" "bash -ic 'declare -F mise >/dev/null && mise --version'"
+check_agent "agent resolves managed Herdr" "test \"\$(command -v herdr)\" = /usr/local/bin/herdr"
+check_agent "agent resolves managed gh" "test \"\$(command -v gh)\" = /usr/local/bin/gh"
+check_agent "agent workspace is writable" "test -w /srv/agent/workspaces"
+check "cron service is active" systemctl is-active cron
+check "cron service is enabled" systemctl is-enabled cron
+check "Claude hello cron is installed" "sudo crontab -u '$agent_user' -l | grep -Fxq \"0 */4 * * * /usr/local/bin/claude auth status >/dev/null 2>&1 && /usr/local/bin/claude --safe-mode --tools '' --print --no-session-persistence hello >/dev/null 2>&1\""
+check "disk usage below 90%" "test \"\$(df --output=pcent / | tail -1 | tr -dc 0-9)\" -lt 90"
 
-# The GUI must NOT be reachable on the public IP.
+# Application ports must NOT be reachable on the public IP.
 public_ip="$(ssh -o BatchMode=yes "$host" "curl -s -4 ifconfig.me" || true)"
 if [ -n "$public_ip" ] && curl --silent --max-time 5 "http://$public_ip:3773" >/dev/null 2>&1; then
-  echo "FAIL  T3 Code is publicly reachable on $public_ip:3773 — fix immediately"
-  fail=1
+	echo "FAIL  T3 Code is publicly reachable on $public_ip:3773 — fix immediately"
+	fail=1
 else
-  echo "PASS  T3 Code is not publicly reachable"
+	echo "PASS  T3 Code is not publicly reachable"
+fi
+
+if [ -n "$public_ip" ] && curl --silent --max-time 5 "http://$public_ip:8317" >/dev/null 2>&1; then
+	echo "FAIL  CLIProxyAPI is publicly reachable on $public_ip:8317 — fix immediately"
+	fail=1
+else
+	echo "PASS  CLIProxyAPI is not publicly reachable"
+fi
+
+tailscale_dns_name="$(ssh -o BatchMode=yes "$host" \
+	"tailscale status --json | jq -r '.Self.DNSName | rtrimstr(\".\")'" || true)"
+cliproxyapi_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+	--max-time 10 "https://$tailscale_dns_name:8317/v1/models" || true)"
+cliproxyapi_panel_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+	--max-time 10 "https://$tailscale_dns_name:8317/management.html" || true)"
+cliproxyapi_management_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+	--max-time 10 "https://$tailscale_dns_name:8317/v0/management/config" || true)"
+
+if [ -n "$tailscale_dns_name" ] && [ "$cliproxyapi_status" = 401 ]; then
+	echo "PASS  CLIProxyAPI is reachable through Tailscale HTTPS"
+else
+	echo "FAIL  CLIProxyAPI Tailscale HTTPS returned ${cliproxyapi_status:-no response}"
+	fail=1
+fi
+
+if [ -n "$tailscale_dns_name" ] && [ "$cliproxyapi_panel_status" = 200 ]; then
+	echo "PASS  CLIProxyAPI management panel is reachable"
+else
+	echo "FAIL  CLIProxyAPI management panel returned ${cliproxyapi_panel_status:-no response}"
+	fail=1
+fi
+
+if [ -n "$tailscale_dns_name" ] && [ "$cliproxyapi_management_status" = 401 ]; then
+	echo "PASS  CLIProxyAPI management API requires authentication"
+else
+	echo "FAIL  CLIProxyAPI management API returned ${cliproxyapi_management_status:-no response}"
+	fail=1
 fi
 
 exit "$fail"

@@ -1,0 +1,12 @@
+host: {{ cliproxyapi_host | to_json }}
+port: {{ cliproxyapi_port }}
+auth-dir: {{ cliproxyapi_auth_dir | to_json }}
+
+api-keys:
+  - {{ cliproxyapi_api_key | to_json }}
+
+remote-management:
+  allow-remote: true
+  secret-key: {{ cliproxyapi_management_key_bcrypt | to_json }}
+  disable-control-panel: false
+  disable-auto-update-panel: true

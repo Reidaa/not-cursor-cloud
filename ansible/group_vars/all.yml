@@ -17,6 +17,20 @@ t3code_bin: t3
 t3code_host: 127.0.0.1
 t3code_port: 3773
 
+# CLIProxyAPI service
+cliproxyapi_bin: cli-proxy-api
+cliproxyapi_host: 127.0.0.1
+cliproxyapi_port: 8317
+cliproxyapi_config_dir: "{{ agent_home }}/.config/cli-proxy-api"
+cliproxyapi_config_file: "{{ cliproxyapi_config_dir }}/config.yaml"
+cliproxyapi_auth_dir: "{{ agent_home }}/.cli-proxy-api"
+cliproxyapi_panel_dir: "{{ agent_state }}/cli-proxy-api-panel"
+cliproxyapi_panel_file: "{{ cliproxyapi_panel_dir }}/management.html"
+cliproxyapi_api_key: "{{ lookup('ansible.builtin.env', 'CLIPROXYAPI_API_KEY') | default('', true) }}"
+cliproxyapi_management_key_bcrypt: >-
+  {{ lookup('ansible.builtin.env', 'CLIPROXYAPI_MANAGEMENT_KEY_BCRYPT')
+     | default('', true) }}
+
 # Tailscale
 tailscale_hostname: "{{ lookup('ansible.builtin.env', 'TF_VAR_server_name') | default('agent-vps', true) }}"
 tailscale_authkey: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTHKEY') | default('', true) }}"

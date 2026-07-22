@@ -1,3 +1,4 @@
+---
 # Single source of truth for non-npm runtime and CLI versions.
 # npm CLI versions live in package.json and are updated weekly by Dependabot.
 # See the README update workflow before changing or deploying a pin.
@@ -22,3 +23,10 @@ herdr_bin: "herdr"
 herdr_release_sha256:
   linux-x86_64: "bc0fc02d4ba500f9cac2353a43e67fe036785ecca6eb55378e050fac3c103059"
   linux-aarch64: "544e0002de42806d1ab64ccdef3a7e7414f24717b0b6b022bc9e57d2eefd26a2"
+
+cliproxyapi_version: "7.2.93"
+cliproxyapi_release_sha256:
+  amd64: "3b97ca20e6b27684696d89120a4708de915f5e83c5eb380c73d05e5031b93759"
+  aarch64: "f7ab17002177eacd19fb3d29077362e63e76f9efed2cf2448abd70b935178b49"
+cliproxyapi_panel_version: "1.18.5"
+cliproxyapi_panel_sha256: "b3cdd426f1f2b37550ead3fcc4033676f9aef372c5717337c4dcd87631398f36"
