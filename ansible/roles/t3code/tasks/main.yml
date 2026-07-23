@@ -22,8 +22,13 @@
   failed_when: false
 
 - name: Expose T3 Code privately via Tailscale Serve
-  ansible.builtin.command: >
-    tailscale serve --yes --bg http://{{ t3code_host }}:{{ t3code_port }}
+  ansible.builtin.command:
+    argv:
+      - tailscale
+      - serve
+      - --yes
+      - --bg
+      - "http://{{ t3code_host }}:{{ t3code_port }}"
   register: t3code_serve_result
   changed_when: t3code_serve_result.rc == 0
   failed_when:
