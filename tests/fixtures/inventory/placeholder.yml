@@ -1,0 +1,9 @@
+---
+devboxes:
+  children:
+    hcloud_devboxes:
+      hosts: {}
+    manual_devboxes:
+      hosts:
+        devbox-1:
+          ansible_host: REPLACE_ME

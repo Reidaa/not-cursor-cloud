@@ -25,6 +25,15 @@ repos:
     rev: v0.11.0
     hooks:
       - id: shellcheck
+        # -x follows scripts/lib/fleet.sh so the variables it sets are checked
+        # in the scripts that source it, matching `just lint`.
+        args: [-x]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.4
+    hooks:
+      - id: ruff-check
+      - id: ruff-format
 
   - repo: https://github.com/adrienverge/yamllint.git
     rev: v1.29.0

@@ -1,0 +1,3 @@
+---
+# Where `npm install -g` puts binaries. /usr/local/bin is on every account's PATH.
+npm_cli_prefix: /usr/local

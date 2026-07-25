@@ -1,0 +1,21 @@
+---
+devboxes:
+  children:
+    hcloud_devboxes:
+      hosts:
+        devbox-1:
+          hcloud_server_type: cx33
+          hcloud_location: hel1
+          hcloud_image: ubuntu-24.04
+          hcloud_enable_public_ssh: false
+          hcloud_delete_protection: true
+          claude_keepalive_enabled: true
+        devbox-2:
+          hcloud_server_type: cx43
+          hcloud_location: hel1
+          hcloud_image: ubuntu-26.04
+          hcloud_enable_public_ssh: false
+          hcloud_delete_protection: true
+          claude_keepalive_enabled: true
+    manual_devboxes:
+      hosts: {}

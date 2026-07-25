@@ -1,6 +1,13 @@
 #cloud-config
-# Minimal first boot: just enough for Ansible to connect.
+# Minimal first boot: create the admin account, patch, and hand over to Ansible.
 # All permanent configuration lives in Ansible; no long-lived secrets here.
+#
+# The upgrade below patches a host at creation, so bootstrap meets a current
+# machine. It does nothing for the hosts you already run: hcloud_server ignores
+# user_data changes, and this file never runs on a host created by hand. Those
+# two gaps are why roles/security repeats the same upgrade on every configure
+# run. No package installs here — the supported Ubuntu images already carry
+# python3 and sudo, which is all Ansible needs on first contact.
 
 users:
   - name: ${admin_user}
@@ -16,12 +23,9 @@ disable_root: true
 
 package_update: true
 package_upgrade: true
-packages:
-  - python3
-  - sudo
-  - ca-certificates
 
-# Reboot only if the security upgrades require it (e.g. new kernel).
+# Reboot only if the upgrade needs it (e.g. a new kernel). Doing it now costs
+# nothing, because nothing is configured yet.
 power_state:
   mode: reboot
   condition: test -f /var/run/reboot-required

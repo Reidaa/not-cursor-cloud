@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "$*" == *"output -json devboxes"* ]]; then
+	echo '{"devbox-1":{"ipv4":"192.0.2.10","admin_user":"admin"}}'
+	exit 0
+fi
+exit 1

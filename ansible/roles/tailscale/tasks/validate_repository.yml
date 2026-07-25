@@ -1,0 +1,19 @@
+---
+# The repository URLs are built from ansible_distribution_release, so checking
+# them against that fact would prove nothing. What is worth checking is that the
+# codename Ubuntu reports is the one Tailscale publishes under. The play already
+# refused any distribution, release, or architecture this repo does not support.
+#
+# ubuntu_releases comes from fleet-contract.json. The default('') keeps an
+# untested release failing with the message below instead of a Jinja error.
+- name: Check the Tailscale repository for this Ubuntu release
+  ansible.builtin.assert:
+    that:
+      - ansible_distribution_version in ubuntu_releases
+      - >-
+        ansible_distribution_release
+        == ubuntu_releases[ansible_distribution_version] | default('')
+    fail_msg: >-
+      The Tailscale role has no tested repository for Ubuntu
+      {{ ansible_distribution_version }}
+      ({{ ansible_distribution_release | default('unknown release') }})

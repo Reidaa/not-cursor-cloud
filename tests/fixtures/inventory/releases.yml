@@ -1,0 +1,23 @@
+---
+all:
+  hosts:
+    ubuntu-2404-x86:
+      ansible_distribution: Ubuntu
+      ansible_distribution_version: "24.04"
+      ansible_distribution_release: noble
+      ansible_architecture: x86_64
+    ubuntu-2404-arm:
+      ansible_distribution: Ubuntu
+      ansible_distribution_version: "24.04"
+      ansible_distribution_release: noble
+      ansible_architecture: aarch64
+    ubuntu-2604-x86:
+      ansible_distribution: Ubuntu
+      ansible_distribution_version: "26.04"
+      ansible_distribution_release: resolute
+      ansible_architecture: x86_64
+    ubuntu-2604-arm:
+      ansible_distribution: Ubuntu
+      ansible_distribution_version: "26.04"
+      ansible_distribution_release: resolute
+      ansible_architecture: aarch64

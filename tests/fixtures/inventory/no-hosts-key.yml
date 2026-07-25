@@ -1,0 +1,11 @@
+---
+# Both child groups exist but neither lists a host, written the way a person
+# would type it rather than as an explicit empty map.
+devboxes:
+  vars:
+    ansible_user: admin
+  children:
+    hcloud_devboxes:
+      hosts:
+    manual_devboxes:
+      hosts:

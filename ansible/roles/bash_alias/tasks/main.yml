@@ -1,0 +1,15 @@
+---
+# Defines one alias in the agent's interactive Bash shells.
+# Each CLI role includes this one and sets:
+#   bash_alias_name     the alias the agent types
+#   bash_alias_command  what the alias expands to
+
+- name: Define the agent alias {{ bash_alias_name }}
+  ansible.builtin.blockinfile:
+    path: "{{ agent_home }}/.bashrc"
+    marker: "# {mark} ANSIBLE MANAGED ALIAS {{ bash_alias_name }}"
+    block: "alias {{ bash_alias_name }}='{{ bash_alias_command }}'"
+    owner: "{{ agent_user }}"
+    group: "{{ agent_user }}"
+    mode: "0644"
+    create: true

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Stands in for a host lookup that finds nothing, so inventory checks that
+# depend on name resolution give the same answer on every machine.
+exit 1

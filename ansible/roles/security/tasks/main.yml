@@ -1,4 +1,25 @@
 ---
+# cloud-init no longer upgrades on first boot, so a new host arrives carrying
+# whatever its image shipped. Bring it current here instead: the step is
+# versioned, it repeats on every configure run, and unattended-upgrades takes
+# over between runs.
+- name: Install pending security updates
+  ansible.builtin.apt:
+    upgrade: safe
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Check whether the upgrade needs a reboot
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: security_reboot_required
+
+# A new kernel only takes effect after a reboot. The play runs serial: 1, so at
+# most one host is down at a time.
+- name: Reboot for kernel updates
+  ansible.builtin.reboot:
+  when: security_reboot_required.stat.exists
+
 - name: Install unattended-upgrades
   ansible.builtin.apt:
     name: unattended-upgrades

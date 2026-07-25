@@ -2,9 +2,9 @@
   "name": "not-cursor-cloud-agent-clis",
   "private": true,
   "dependencies": {
-    "@anthropic-ai/claude-code": "2.1.211",
-    "@openai/codex": "0.144.5",
-    "opencode-ai": "1.18.3",
+    "@anthropic-ai/claude-code": "2.1.220",
+    "@openai/codex": "0.145.0",
+    "opencode-ai": "1.18.5",
     "t3": "0.0.28"
   }
 }

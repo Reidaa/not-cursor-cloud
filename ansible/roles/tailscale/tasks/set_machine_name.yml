@@ -1,0 +1,28 @@
+---
+# Keeps the tailnet machine name equal to the DevBox name. Split out from
+# main.yml so tests can drive it with a stubbed `tailscale status` result.
+- name: Read the current Tailscale machine name
+  ansible.builtin.set_fact:
+    # The first label of DNSName is the name the tailnet knows this host by, and
+    # that is what the rename has to change. Self.HostName is only the Linux
+    # hostname reported back, which a pre-task already set to inventory_hostname,
+    # so comparing against it would always match and the rename would never run.
+    tailscale_machine_name: >-
+      {{ ((tailscale_state.stdout | from_json).Self.DNSName | default('', true)).split('.') | first }}
+  when:
+    - tailscale_state.rc == 0
+    - (tailscale_state.stdout | from_json).BackendState == 'Running'
+
+- name: Decide whether the tailnet name needs changing
+  ansible.builtin.set_fact:
+    # An empty name means the host is not enrolled or MagicDNS is off, and there
+    # is nothing to compare against, so leave the tailnet name alone rather than
+    # renaming on every run.
+    tailscale_rename_needed: >-
+      {{ (tailscale_machine_name | default('') | length > 0)
+         and tailscale_machine_name != inventory_hostname }}
+
+- name: Set the Tailscale machine name
+  ansible.builtin.command: tailscale set --hostname {{ inventory_hostname }}
+  changed_when: true
+  when: tailscale_rename_needed | bool

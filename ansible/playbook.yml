@@ -1,18 +1,46 @@
 ---
 - name: Configure DevBoxes
   hosts: devboxes
+  serial: 1
   become: true
   vars_files:
     - ../versions.yml
+    # Valid names, locations, and Ubuntu releases, shared with OpenTofu and the
+    # scripts. Loaded after group_vars, so it wins on any name they share.
+    - ../fleet-contract.json
+  pre_tasks:
+    - name: Check the DevBox name
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname is match(machine_name_pattern)
+        fail_msg: "{{ inventory_hostname }} is not a valid DevBox name"
+
+    # This is the only place the fleet decides which systems it supports; the
+    # roles trust it. become: true already proves the admin account has sudo, so
+    # there is no separate check for that.
+    - name: Check the operating system
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_version in ubuntu_releases
+          - ansible_architecture in supported_architectures
+        fail_msg: >-
+          This repo does not support {{ ansible_distribution }}
+          {{ ansible_distribution_version }} on {{ ansible_architecture }}
+
+    - name: Set the Linux hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+
   roles:
     - base
     - security
     - tailscale
     - agent_user
-    - cliproxyapi
     - nodejs
     - mise
     - github_cli
-    - agent_clis
-    - herdr
+    - claude_code
+    - codex
+    - opencode
     - t3code

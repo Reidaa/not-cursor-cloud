@@ -1,0 +1,7 @@
+---
+opencode_bin: opencode
+# Approves every permission the OpenCode config does not explicitly deny. Safe
+# only because the DevBox itself is the sandbox: the agent user has no sudo and
+# nothing outside its home to reach.
+opencode_alias: opencode-yolo
+opencode_alias_flags: --auto

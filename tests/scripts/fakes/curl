@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+args="$*"
+if [[ "$args" == *"server_types?name="* ]]; then
+	echo '{"server_types":[{"id":2}]}'
+elif [[ "$args" == *"datacenters?per_page=50"* ]]; then
+	echo '{"datacenters":[{"location":{"name":"fsn1"},"server_types":{"available":[2]}}]}'
+elif [[ "$args" == *"/management.html"* ]]; then
+	echo -n "200"
+elif [[ "$args" == *"/v0/management/config"* ]]; then
+	echo -n "401"
+elif [[ "$args" == *"/v1/models"* ]]; then
+	echo -n "401"
+else
+	exit 1
+fi

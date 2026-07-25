@@ -12,6 +12,7 @@ dependencies = [
 dev = [
     "ansible-lint>=25.1",
     "pre-commit>=4.6.0",
+    "ruff>=0.14",
     "yamllint>=1.35",
 ]
 

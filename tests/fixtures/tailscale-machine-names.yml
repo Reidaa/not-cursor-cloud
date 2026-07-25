@@ -1,0 +1,43 @@
+---
+# Each host stands for one state `tailscale status --json` can report. Every
+# stub sets HostName to the DevBox name, because a playbook pre-task sets the
+# Linux hostname before Tailscale runs: only DNSName can tell us what the
+# tailnet still calls this host.
+all:
+  hosts:
+    devbox-1:
+      # Enrolled under its old name. This is the rename that must happen.
+      tailscale_state:
+        rc: 0
+        stdout: >-
+          {"BackendState": "Running",
+           "Self": {"DNSName": "agent-vps.example.ts.net.",
+                    "HostName": "devbox-1"}}
+      expected_rename: true
+
+    devbox-2:
+      # Already correct.
+      tailscale_state:
+        rc: 0
+        stdout: >-
+          {"BackendState": "Running",
+           "Self": {"DNSName": "devbox-2.example.ts.net.",
+                    "HostName": "devbox-2"}}
+      expected_rename: false
+
+    devbox-3:
+      # Enrolled, but MagicDNS gives no name to compare against.
+      tailscale_state:
+        rc: 0
+        stdout: >-
+          {"BackendState": "Running",
+           "Self": {"DNSName": "", "HostName": "devbox-3"}}
+      expected_rename: false
+
+    devbox-4:
+      # Not enrolled yet.
+      tailscale_state:
+        rc: 0
+        stdout: >-
+          {"BackendState": "NeedsLogin", "Self": {}}
+      expected_rename: false

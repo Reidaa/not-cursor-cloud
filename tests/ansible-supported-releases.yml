@@ -1,0 +1,80 @@
+---
+# Runs the Tailscale role's release logic against every supported Ubuntu
+# release and architecture, using the fact fixtures in
+# tests/fixtures/inventory/releases.yml instead of a real host.
+- name: Check Tailscale role release routing
+  hosts: all
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../ansible/group_vars/all.yml
+    - ../ansible/roles/tailscale/defaults/main.yml
+    - ../fleet-contract.json
+  vars:
+    # Written out in full on purpose. The role builds these strings from a fact,
+    # so only a spelled-out expectation can catch a wrong repository.
+    expected_signing_key_urls:
+      "24.04": https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+      "26.04": https://pkgs.tailscale.com/stable/ubuntu/resolute.noarmor.gpg
+    expected_apt_repositories:
+      "24.04": >-
+        deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+        https://pkgs.tailscale.com/stable/ubuntu noble main
+      "26.04": >-
+        deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+        https://pkgs.tailscale.com/stable/ubuntu resolute main
+  tasks:
+    - name: Run the Tailscale release checks
+      ansible.builtin.include_role:
+        name: tailscale
+        tasks_from: validate_repository.yml
+
+    - name: Check the repository the role selected for this release
+      ansible.builtin.assert:
+        that:
+          - >-
+            tailscale_signing_key_url
+            == expected_signing_key_urls[ansible_distribution_version]
+          - >-
+            tailscale_apt_repository
+            == expected_apt_repositories[ansible_distribution_version]
+        fail_msg: >-
+          The Tailscale role points Ubuntu {{ ansible_distribution_version }}
+          at the wrong repository.
+
+- name: Check the release check rejects an unsupported system
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../ansible/group_vars/all.yml
+    - ../ansible/roles/tailscale/defaults/main.yml
+    - ../fleet-contract.json
+  vars:
+    ansible_distribution: Ubuntu
+    ansible_distribution_version: "22.04"
+    ansible_distribution_release: jammy
+    ansible_architecture: x86_64
+  tasks:
+    # A failed assertion inside an included role stops the play, so the check
+    # runs in a block and rescue turns the expected failure into a pass.
+    - name: Run the release check against Ubuntu 22.04
+      block:
+        - name: Include the release check
+          ansible.builtin.include_role:
+            name: tailscale
+            tasks_from: validate_repository.yml
+
+        - name: Record that the release check accepted Ubuntu 22.04
+          ansible.builtin.set_fact:
+            unsupported_release_accepted: true
+      rescue:
+        - name: Report the expected refusal
+          ansible.builtin.debug:
+            msg: The release check refused Ubuntu 22.04, as it should.
+
+    - name: Check that Ubuntu 22.04 was refused
+      ansible.builtin.assert:
+        that:
+          - unsupported_release_accepted is not defined
+        fail_msg: The release check must refuse an untested Ubuntu release.

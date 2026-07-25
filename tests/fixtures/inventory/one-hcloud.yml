@@ -1,0 +1,16 @@
+---
+devboxes:
+  vars:
+    ansible_user: admin
+  children:
+    hcloud_devboxes:
+      hosts:
+        devbox-1:
+          hcloud_server_type: cx33
+          hcloud_location: hel1
+          hcloud_image: ubuntu-24.04
+          hcloud_enable_public_ssh: true
+          hcloud_delete_protection: true
+          claude_keepalive_enabled: true
+    manual_devboxes:
+      hosts: {}

@@ -1,0 +1,7 @@
+---
+codex_bin: codex
+# Skips every approval prompt and Codex's own sandbox. Safe only because the
+# DevBox itself is the sandbox: the agent user has no sudo and nothing outside
+# its home to reach.
+codex_alias: codex-yolo
+codex_alias_flags: --dangerously-bypass-approvals-and-sandbox

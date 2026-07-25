@@ -1,0 +1,7 @@
+{
+  "machine_name_pattern": "^devbox-[1-9][0-9]*$",
+  "hcloud_server_type_pattern": "^[a-z][a-z0-9]*[1-9][0-9]*$",
+  "hcloud_locations": ["nbg1", "fsn1", "hel1", "ash", "hil", "sin"],
+  "ubuntu_releases": { "24.04": "noble", "26.04": "resolute" },
+  "documentation_ipv4_prefixes": ["192.0.2.", "198.51.100.", "203.0.113."]
+}

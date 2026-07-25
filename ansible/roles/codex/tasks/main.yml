@@ -1,0 +1,14 @@
+---
+- name: Install the Codex CLI
+  ansible.builtin.include_role:
+    name: npm_cli
+  vars:
+    npm_cli_package: "@openai/codex"
+    npm_cli_bin: "{{ codex_bin }}"
+
+- name: Alias Codex with full permissions
+  ansible.builtin.include_role:
+    name: bash_alias
+  vars:
+    bash_alias_name: "{{ codex_alias }}"
+    bash_alias_command: "{{ codex_bin }} {{ codex_alias_flags }}"

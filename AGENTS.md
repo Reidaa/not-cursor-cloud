@@ -22,7 +22,7 @@ Review every prose output against these rules before delivering.
 ## Ansible
 
 - Keep independently versioned runtimes and products in dedicated Ansible roles rather than adding them to a general-purpose role.
-- Do not run ansible playbook that could induce destructive changes by yourself
+- Do not run ansible playbook that could induce destructive changes unless explicitly requested by the user.
 - Prefer `ansible.builtin.cron` for simple periodic jobs whose interval divides evenly into 24 hours; use systemd timers when precise elapsed intervals or service lifecycle controls are needed.
 
 ## Commit Guidelines

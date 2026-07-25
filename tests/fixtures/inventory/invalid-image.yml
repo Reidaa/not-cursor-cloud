@@ -1,0 +1,13 @@
+---
+devboxes:
+  children:
+    hcloud_devboxes:
+      hosts:
+        devbox-1:
+          hcloud_server_type: cx33
+          hcloud_location: hel1
+          hcloud_image: ubuntu-22.04
+          hcloud_enable_public_ssh: false
+          hcloud_delete_protection: true
+    manual_devboxes:
+      hosts: {}

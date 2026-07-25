@@ -4,37 +4,24 @@ variable "hcloud_token" {
   sensitive   = true
 }
 
-variable "server_name" {
-  description = "Name of the VPS (also used for firewall and SSH key names)."
+variable "ansible_inventory_file" {
+  description = "Fleet inventory. OpenTofu reads only its hcloud_devboxes group."
   type        = string
-  default     = "agent-vps"
+  default     = "../ansible/inventory/hosts.yml"
 
   validation {
-    condition     = can(regex("^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", var.server_name))
-    error_message = "server_name must be a lowercase DNS label."
-  }
-}
-
-variable "server_type" {
-  description = "Hetzner server type. CX33 = 4 vCPU / 8 GB / 80 GB, matching the plan's minimum. Availability fluctuates — run `just check-availability` first."
-  type        = string
-  default     = "cx33"
-}
-
-variable "location" {
-  description = "Hetzner location (nbg1, fsn1, hel1, ...)."
-  type        = string
-  default     = "nbg1"
-}
-
-variable "image" {
-  description = "OS image. This repository currently supports Ubuntu 24.04 only."
-  type        = string
-  default     = "ubuntu-24.04"
-
-  validation {
-    condition     = var.image == "ubuntu-24.04"
-    error_message = "Only ubuntu-24.04 is currently supported by the Ansible roles."
+    # A group written with no hosts under it decodes to null, which is allowed
+    # and simply means the group is empty. An absent group decodes to the
+    # "missing" sentinel, and any other shape is a typo; keys() rejects both. A
+    # list or a string here would otherwise read as a fleet with no hosts, which
+    # plans the deletion of every existing server.
+    condition = fileexists(var.ansible_inventory_file) ? alltrue([
+      for hosts in [
+        try(yamldecode(file(var.ansible_inventory_file)).devboxes.children.hcloud_devboxes.hosts, "missing"),
+        try(yamldecode(file(var.ansible_inventory_file)).devboxes.children.manual_devboxes.hosts, "missing"),
+      ] : hosts == null || can(keys(hosts))
+    ]) : false
+    error_message = "ansible_inventory_file must contain both DevBox child groups, each holding a map of hosts."
   }
 }
 
@@ -50,25 +37,39 @@ variable "admin_user" {
 }
 
 variable "ssh_public_key" {
-  description = "Bootstrap SSH public key (contents of ~/.ssh/id_ed25519.pub)."
+  description = "Bootstrap SSH public key."
   type        = string
-}
 
-variable "enable_public_ssh" {
-  description = "Keep public SSH open. Set to false once Tailscale access is verified."
-  type        = bool
+  validation {
+    condition = (
+      can(regex("^ssh-(ed25519|rsa|ecdsa-[^ ]+) [A-Za-z0-9+/=]+", var.ssh_public_key)) &&
+      !can(regex("(?i)(replace|placeholder)", var.ssh_public_key))
+    )
+    error_message = "ssh_public_key must contain a real OpenSSH public key."
+  }
 }
 
 variable "bootstrap_ssh_source_ips" {
-  description = "IPv4 CIDRs allowed to reach public SSH during bootstrap. Use your current public IP/32."
+  description = "IPv4 CIDRs allowed to reach public SSH during bootstrap."
   type        = list(string)
 
   validation {
     condition = (
       length(var.bootstrap_ssh_source_ips) > 0 &&
-      alltrue([for cidr in var.bootstrap_ssh_source_ips : can(cidrnetmask(cidr))]) &&
+      alltrue([
+        for cidr in var.bootstrap_ssh_source_ips :
+        try(cidrnetmask(cidr) != "0.0.0.0", false) &&
+        can(regex("^[0-9.]+/[0-9]+$", cidr)) &&
+        # The documentation ranges are the ones .env.example ships, so rejecting
+        # them here catches an unedited example. The prefixes come from the
+        # fleet contract that doctor.sh and validate-inventory.py also read.
+        !anytrue([
+          for prefix in jsondecode(file("${path.module}/../fleet-contract.json")).documentation_ipv4_prefixes :
+          startswith(cidr, prefix)
+        ])
+      ]) &&
       !contains(var.bootstrap_ssh_source_ips, "0.0.0.0/0")
     )
-    error_message = "Provide at least one restricted IPv4 CIDR; 0.0.0.0/0 is not allowed."
+    error_message = "Provide real, restricted IPv4 CIDRs; IPv4 /0 ranges are not allowed."
   }
 }

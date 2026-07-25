@@ -1,13 +1,16 @@
 ---
+- name: Check Tailscale release support
+  ansible.builtin.include_tasks: validate_repository.yml
+
 - name: Add Tailscale signing key
   ansible.builtin.get_url:
-    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    url: "{{ tailscale_signing_key_url }}"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: "0644"
 
 - name: Add Tailscale apt repository
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg] https://pkgs.tailscale.com/stable/ubuntu noble main"
+    repo: "{{ tailscale_apt_repository }}"
     filename: tailscale
     state: present
 
@@ -34,7 +37,7 @@
   ansible.builtin.command: >
     tailscale up
     --authkey {{ tailscale_authkey }}
-    --hostname {{ tailscale_hostname }}
+    --hostname {{ inventory_hostname }}
     --ssh
   no_log: true
   changed_when: true
@@ -49,6 +52,9 @@
   failed_when: false
   check_mode: false
 
+- name: Keep the tailnet machine name equal to the DevBox name
+  ansible.builtin.include_tasks: set_machine_name.yml
+
 - name: Report enrollment status
   ansible.builtin.debug:
     msg: >
@@ -59,13 +65,13 @@
 - name: Explain manual Tailscale enrollment
   ansible.builtin.debug:
     msg: |
-      Tailscale is installed but not enrolled on the remote VPS.
+      The DevBox has Tailscale but no tailnet enrollment.
 
-      1. On your local machine, connect to the VPS:
-         ssh {{ ansible_user }}@{{ ansible_host }}
+      1. On your local machine, connect to the DevBox:
+         ssh {{ ansible_user }}@{{ ansible_host | default(inventory_hostname) }}
 
-      2. Inside the remote VPS, enroll it in your tailnet:
-         sudo tailscale up --hostname {{ tailscale_hostname }} --ssh
+      2. Inside the DevBox, enroll it in your tailnet:
+         sudo tailscale up --hostname {{ inventory_hostname }} --ssh
          exit
 
       3. Back on your local machine, rerun the playbook.

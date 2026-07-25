@@ -1,0 +1,14 @@
+---
+- name: Install the OpenCode CLI
+  ansible.builtin.include_role:
+    name: npm_cli
+  vars:
+    npm_cli_package: opencode-ai
+    npm_cli_bin: "{{ opencode_bin }}"
+
+- name: Alias OpenCode with full permissions
+  ansible.builtin.include_role:
+    name: bash_alias
+  vars:
+    bash_alias_name: "{{ opencode_alias }}"
+    bash_alias_command: "{{ opencode_bin }} {{ opencode_alias_flags }}"

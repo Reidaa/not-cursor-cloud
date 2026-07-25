@@ -1,43 +1,49 @@
 #!/usr/bin/env bash
-# One-shot bootstrap: provision the VPS then configure it
-# (Steps 2-5). Requires: tofu, uv, TF_VAR_hcloud_token set, and
-# TF_VAR_ssh_public_key set (or a .env file — run via `just bootstrap`).
+# Configure one new DevBox through its first reachable address.
 set -euo pipefail
 umask 077
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/fleet.sh
+source "$repo_root/scripts/lib/fleet.sh"
+
+fleet_require_machine "bootstrap.sh devbox-N" "$@"
+machine="$fleet_machine"
 
 "$repo_root/scripts/doctor.sh"
 
-echo "==> Preflight: server type availability"
-"$repo_root/scripts/check-availability.sh"
+admin_user="$(fleet_host_var "$fleet_inventory_json" "$machine" ansible_user)"
 
-echo "==> Provisioning (tofu apply)"
-tofu -chdir="$repo_root/tofu" init -input=false
-tofu -chdir="$repo_root/tofu" apply
+if [ "$fleet_group" = "hcloud_devboxes" ]; then
+	devboxes_json="$(tofu -chdir="$repo_root/tofu" output -json devboxes)"
+	address="$(jq -er --arg machine "$machine" '.[$machine].ipv4' <<<"$devboxes_json")" || {
+		echo "OpenTofu has no public IP for $machine; run just apply first" >&2
+		exit 1
+	}
+else
+	address="$(fleet_host_var "$fleet_inventory_json" "$machine" ansible_host)"
+fi
 
-ip="$(tofu -chdir="$repo_root/tofu" output -raw server_ipv4)"
-admin_user="$(tofu -chdir="$repo_root/tofu" output -raw admin_user)"
-"$repo_root/scripts/update-inventory.sh"
-
-echo "==> Waiting for SSH (cloud-init may reboot the host once)"
+echo "Waiting for SSH on $admin_user@$address"
 ssh_ready=false
 for _ in $(seq 1 60); do
 	if ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new \
-		"$admin_user@$ip" true 2>/dev/null; then
+		"$admin_user@$address" true 2>/dev/null; then
 		ssh_ready=true
 		break
 	fi
 	sleep 10
 done
 if ! $ssh_ready; then
-	echo "SSH did not become ready at $admin_user@$ip after 10 minutes" >&2
+	echo "SSH did not become ready at $admin_user@$address after 10 minutes" >&2
 	exit 1
 fi
 
-echo "==> Running Ansible against $admin_user@$ip"
+extra_vars="$(jq -nc --arg address "$address" '{ansible_host: $address}')"
+echo "Running Ansible for $machine through $address"
 cd "$repo_root/ansible"
-uv run ansible-playbook playbook.yml "$@"
+uv run ansible-playbook playbook.yml \
+	--limit "$machine" \
+	--extra-vars "$extra_vars"
 
-echo "==> Done. Next: enroll Tailscale if needed, switch the inventory to"
-echo "    MagicDNS, and verify access. Public SSH closure is not automated yet."
+echo "Done. Check ssh $admin_user@$machine, then run: just configure $machine"

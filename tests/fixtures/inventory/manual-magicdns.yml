@@ -1,0 +1,11 @@
+---
+devboxes:
+  vars:
+    ansible_user: admin
+  children:
+    hcloud_devboxes:
+      hosts: {}
+    manual_devboxes:
+      hosts:
+        devbox-3:
+          claude_keepalive_enabled: false

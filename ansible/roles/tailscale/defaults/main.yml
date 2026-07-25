@@ -1,0 +1,7 @@
+---
+tailscale_signing_key_url: >-
+  https://pkgs.tailscale.com/stable/ubuntu/{{ ansible_distribution_release }}.noarmor.gpg
+tailscale_apt_repository: >-
+  deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+  https://pkgs.tailscale.com/stable/ubuntu
+  {{ ansible_distribution_release }} main

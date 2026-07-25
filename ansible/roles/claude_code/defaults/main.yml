@@ -1,0 +1,6 @@
+---
+claude_code_bin: claude
+# Skips every permission prompt. Safe only because the DevBox itself is the
+# sandbox: the agent user has no sudo and nothing outside its home to reach.
+claude_code_alias: claude-yolo
+claude_code_alias_flags: --dangerously-skip-permissions

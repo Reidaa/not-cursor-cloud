@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "${1:-}" = "run" ] && [ "${2:-}" = "ansible-playbook" ]; then
+	printf '%s\n' "$*" >>"${TEST_COMMAND_LOG:?}"
+	exit 0
+fi
+exec "${REAL_UV:?}" "$@"

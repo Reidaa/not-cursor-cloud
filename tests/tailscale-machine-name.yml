@@ -1,0 +1,23 @@
+---
+# Drives the Tailscale rename decision with stubbed `tailscale status` output.
+# check_mode keeps the `tailscale set` command from running while set_fact still
+# does, so the decision itself is what gets checked.
+- name: Check the Tailscale rename decision
+  hosts: all
+  connection: local
+  gather_facts: false
+  check_mode: true
+  tasks:
+    - name: Run the rename decision
+      ansible.builtin.include_role:
+        name: tailscale
+        tasks_from: set_machine_name.yml
+
+    - name: Check the decision for this host
+      ansible.builtin.assert:
+        that:
+          - tailscale_rename_needed | bool == expected_rename
+        fail_msg: >-
+          {{ inventory_hostname }}: expected rename={{ expected_rename }},
+          got {{ tailscale_rename_needed }}
+          from {{ tailscale_machine_name | default('no name') }}

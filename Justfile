@@ -33,39 +33,35 @@ install-hooks:
 whats-my-ip:
     @curl --fail --silent --show-error --ipv4 https://ifconfig.me/ip
 
-# Verify the server type is in stock before provisioning (CX plans sell out)
-check-availability *ARGS:
-    scripts/check-availability.sh {{ ARGS }}
+# Verify one inventory host's type and location are in stock.
+check-availability machine:
+    scripts/check-availability.sh {{ quote(machine) }}
 
-# Poll every 60s until the server type is in stock, then exit 0
-wait-availability *ARGS:
-    scripts/check-availability.sh --wait {{ ARGS }}
+# Poll every 60 seconds until one host's type is in stock.
+wait-availability machine:
+    scripts/check-availability.sh --wait {{ quote(machine) }}
 
-plan:
+plan: doctor
     umask 077; tofu -chdir={{ tofu_dir }} plan
 
-apply:
+apply: doctor
     umask 077; tofu -chdir={{ tofu_dir }} apply
 
 output *ARGS:
     @tofu -chdir={{ tofu_dir }} output {{ ARGS }}
 
-# Set the Ansible SSH target from the provisioned server's public IPv4.
-update-inventory:
-    scripts/update-inventory.sh
-
-# Switch Ansible to a verified Tailscale MagicDNS hostname.
-set-inventory-host host:
-    scripts/update-inventory.sh {{ quote(host) }}
-
-destroy:
+# Remove every Hetzner host in inventory. To remove one host, clear its
+# hcloud_delete_protection, apply, then drop it from inventory and apply again.
+destroy-hcloud-fleet:
     umask 077; tofu -chdir={{ tofu_dir }} destroy
 
-# TODO: Design a simple, isolated way to close public SSH without applying unrelated infrastructure changes.
+# Configure one host or an Ansible host pattern.
+configure machine:
+    scripts/configure.sh {{ quote(machine) }}
 
-# Run the playbook; extra Ansible arguments pass through.
-configure *ARGS:
-    cd ansible && uv run ansible-playbook playbook.yml {{ ARGS }}
+# Configure the fleet one host at a time.
+configure-all:
+    scripts/configure.sh devboxes
 
 # Dry run with diff — use before and after changing versions.yml
 check *ARGS:
@@ -74,19 +70,22 @@ check *ARGS:
 syntax:
     cd ansible && uv run ansible-playbook playbook.yml --syntax-check
 
-# tofu apply + wait for SSH + full playbook run
-bootstrap *ARGS:
-    scripts/bootstrap.sh {{ ARGS }}
+# Configure one new host through its first address.
+bootstrap machine:
+    scripts/bootstrap.sh {{ quote(machine) }}
 
-# e.g. just smoke admin@agent-vps.<tailnet>.ts.net
-smoke host:
-    scripts/smoke-test.sh {{ host }}
+smoke machine:
+    scripts/smoke-test.sh {{ quote(machine) }}
+
+smoke-all:
+    scripts/smoke-test.sh devboxes
 
 # --- Quality ---
 
 fmt:
     tofu -chdir={{ tofu_dir }} fmt
     shfmt -w scripts
+    uv run ruff format scripts
     uv run ansible-lint --fix ansible
 
 lint:
@@ -94,7 +93,18 @@ lint:
     tofu -chdir={{ tofu_dir }} validate
     uv run yamllint .
     cd ansible && uv run ansible-lint
-    shellcheck scripts/*.sh
+    # -x follows the sourced fleet library so its variables are checked too.
+    shellcheck -x scripts/*.sh tests/*.sh
+    shellcheck scripts/lib/*.sh
+    uv run ruff check scripts
+    uv run ruff format --check scripts
+
+test:
+    tests/inventory-validation.sh
+    tests/script-commands.sh
+    cd ansible && uv run ansible-playbook -i ../tests/fixtures/inventory/releases.yml ../tests/ansible-supported-releases.yml
+    cd ansible && uv run ansible-playbook -i ../tests/fixtures/tailscale-machine-names.yml ../tests/tailscale-machine-name.yml
+    tofu -chdir={{ tofu_dir }} test
 
 pre-commit:
     uv run pre-commit run --all-files

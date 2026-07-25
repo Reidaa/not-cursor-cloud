@@ -1,0 +1,27 @@
+---
+- name: Install the Claude Code CLI
+  ansible.builtin.include_role:
+    name: npm_cli
+  vars:
+    npm_cli_package: "@anthropic-ai/claude-code"
+    npm_cli_bin: "{{ claude_code_bin }}"
+
+- name: Alias Claude Code with full permissions
+  ansible.builtin.include_role:
+    name: bash_alias
+  vars:
+    bash_alias_name: "{{ claude_code_alias }}"
+    bash_alias_command: "{{ claude_code_bin }} {{ claude_code_alias_flags }}"
+
+# Keeps one host's Claude login fresh. Only one host in the fleet may enable it.
+- name: Send Claude hello every four hours
+  ansible.builtin.cron:
+    name: Send Claude hello every four hours
+    user: "{{ agent_user }}"
+    minute: "0"
+    hour: "*/4"
+    job: >-
+      /usr/local/bin/{{ claude_code_bin }} auth status >/dev/null 2>&1 &&
+      /usr/local/bin/{{ claude_code_bin }} --safe-mode --tools '' --print
+      --no-session-persistence hello >/dev/null 2>&1
+    state: "{{ claude_keepalive_enabled | bool | ternary('present', 'absent') }}"

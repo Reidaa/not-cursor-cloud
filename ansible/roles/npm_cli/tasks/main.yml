@@ -1,0 +1,32 @@
+---
+# Installs one npm CLI at the exact version pinned in the repository package.json.
+# Each CLI has its own role; those roles include this one and set:
+#   npm_cli_package  the npm package name, as written in package.json
+#   npm_cli_bin      the command the package installs, used for the version check
+
+- name: Load the pinned npm CLI versions
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../package.json"
+    name: npm_cli_manifest
+
+- name: Read the pinned version of {{ npm_cli_package }}
+  ansible.builtin.set_fact:
+    npm_cli_version: "{{ npm_cli_manifest.dependencies[npm_cli_package] }}"
+
+- name: Check the installed version of {{ npm_cli_package }}
+  ansible.builtin.command: "{{ npm_cli_bin }} --version"
+  register: npm_cli_installed
+  changed_when: false
+  failed_when: false
+  # Reading the version changes nothing, so it also runs under --check.
+  check_mode: false
+
+# Reinstall whenever the command is missing or reports another version.
+- name: Install the pinned {{ npm_cli_package }}
+  ansible.builtin.command: >
+    npm install -g --prefix {{ npm_cli_prefix }}
+    {{ npm_cli_package }}@{{ npm_cli_version }}
+  environment:
+    PATH: "/usr/local/bin:/usr/bin:/bin"
+  changed_when: true
+  when: npm_cli_installed.rc != 0 or npm_cli_version not in npm_cli_installed.stdout
