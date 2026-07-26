@@ -84,6 +84,17 @@ grep -q "PASS  devbox-1 smoke test" "$temp_dir/output" || fail=1
 grep -q "PASS  devbox-2 smoke test" "$temp_dir/output" || fail=1
 grep -q "PASS  devbox-3 smoke test" "$temp_dir/output" || fail=1
 
+# A failed inventory read must report its own error rather than look like a
+# pattern that matched nothing.
+printf '#!/bin/sh\necho "uv: simulated failure" >&2\nexit 3\n' >"$temp_dir/uv"
+chmod +x "$temp_dir/uv"
+PATH="$temp_dir:$PATH" expect_failure "host selection reports a failed read" \
+	"$repo_root/scripts/smoke-test.sh" devboxes
+grep -q "simulated failure" "$temp_dir/output" || fail=1
+if grep -q "No hosts match" "$temp_dir/output"; then
+	fail=1
+fi
+
 : >"$temp_dir/commands.log"
 expect_success "configure runs the playbook" \
 	"$repo_root/scripts/configure.sh" devboxes

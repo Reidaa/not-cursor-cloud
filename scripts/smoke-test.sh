@@ -6,20 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=scripts/lib/fleet.sh
 source "$repo_root/scripts/lib/fleet.sh"
 
-pattern="${1:-devboxes}"
-if [ "$#" -gt 1 ]; then
-	echo "usage: smoke-test.sh [devbox-N|ansible-pattern]" >&2
-	exit 1
-fi
-
-hosts=()
-while IFS= read -r machine; do
-	hosts+=("$machine")
-done < <(fleet_select_hosts "$pattern")
-if [ "${#hosts[@]}" -eq 0 ]; then
-	echo "No hosts match: $pattern" >&2
-	exit 1
-fi
+fleet_require_hosts "smoke-test.sh [devbox-N|ansible-pattern]" "$@"
 
 inventory_json="$(fleet_read_inventory)"
 fail=0
@@ -68,14 +55,14 @@ smoke_host() {
 	local keepalive_enabled
 	local public_ip
 
-	address="$(jq -r --arg machine "$machine" \
-		'._meta.hostvars[$machine].ansible_host // $machine' <<<"$inventory_json")"
+	# A host bootstrapped without a fixed address answers to its MagicDNS name.
+	address="$(fleet_host_var_or "$inventory_json" "$machine" ansible_host "$machine")"
 	admin_user="$(fleet_host_var "$inventory_json" "$machine" ansible_user)"
 	host="$admin_user@$address"
 	agent_host="$address"
 	host_fail=0
-	keepalive_enabled="$(jq -r --arg machine "$machine" \
-		'._meta.hostvars[$machine].claude_keepalive_enabled // false' <<<"$inventory_json")"
+	keepalive_enabled="$(fleet_host_var_or \
+		"$inventory_json" "$machine" claude_keepalive_enabled false)"
 
 	echo "==> $machine ($host)"
 
@@ -121,7 +108,7 @@ smoke_host() {
 	fi
 }
 
-for machine in "${hosts[@]}"; do
+for machine in "${fleet_hosts[@]}"; do
 	smoke_host "$machine"
 done
 

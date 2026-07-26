@@ -58,6 +58,18 @@ fleet_host_var() {
 		<<<"$inventory_json"
 }
 
+# The same read for variables inventory may leave unset — the caller supplies
+# the value to use instead of failing.
+fleet_host_var_or() {
+	local inventory_json="$1"
+	local machine="$2"
+	local variable="$3"
+	local fallback="$4"
+	jq -r --arg machine "$machine" --arg variable "$variable" --arg fallback "$fallback" \
+		'._meta.hostvars[$machine][$variable] // $fallback' \
+		<<<"$inventory_json"
+}
+
 # Every per-host command opens the same way: check the argument count, check the
 # name, then find the host in inventory. Callers pass their usage line and their
 # arguments, and read the results from fleet_machine, fleet_inventory_json, and
@@ -100,4 +112,41 @@ fleet_select_hosts() {
 			printf '%s\n' "$host"
 		fi
 	done <<<"$output"
+}
+
+# Every fleet-wide command opens the same way: check the argument count, then
+# resolve the pattern to real hosts so a typo fails here rather than as an
+# Ansible run that silently matches nothing. Callers pass their usage line and
+# their arguments, and read the results from fleet_pattern and fleet_hosts.
+# shellcheck disable=SC2034  # fleet_pattern is read by the sourcing script
+fleet_require_hosts() {
+	local usage="$1"
+	shift
+	if [ "$#" -gt 1 ]; then
+		echo "usage: $usage" >&2
+		return 1
+	fi
+
+	local pattern="${1:-devboxes}"
+	local selected host
+
+	# Collect the hosts before splitting them, so a failed Ansible run reports
+	# its own error instead of an empty match.
+	if ! selected="$(fleet_select_hosts "$pattern")"; then
+		return 1
+	fi
+
+	fleet_hosts=()
+	while IFS= read -r host; do
+		if [ -n "$host" ]; then
+			fleet_hosts+=("$host")
+		fi
+	done <<<"$selected"
+
+	if [ "${#fleet_hosts[@]}" -eq 0 ]; then
+		echo "No hosts match: $pattern" >&2
+		return 1
+	fi
+
+	fleet_pattern="$pattern"
 }
