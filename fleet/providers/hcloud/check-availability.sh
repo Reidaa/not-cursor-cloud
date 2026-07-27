@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Check stock for one Hetzner host selected through inventory.
+# Check Hetzner stock for one declared DevBox. The type and location must come
+# from the specs rather than from state, because the point of this check is to
+# ask whether a machine that does not exist yet can be created.
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=scripts/lib/fleet.sh
-source "$repo_root/scripts/lib/fleet.sh"
+provider_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+specs_file="${FLEET_HCLOUD_SPECS_FILE:-$provider_dir/devboxes.auto.tfvars.json}"
 
 wait_mode=false
 if [ "${1:-}" = "--wait" ]; then
@@ -12,23 +13,31 @@ if [ "${1:-}" = "--wait" ]; then
 	shift
 fi
 
-fleet_require_machine "check-availability.sh [--wait] devbox-N" "$@"
-machine="$fleet_machine"
-
-if [ "$fleet_group" != "hcloud_devboxes" ]; then
-	echo "$machine belongs to manual_devboxes; Hetzner has no stock to check" >&2
+if [ "$#" -ne 1 ] || [ -z "$1" ]; then
+	echo "usage: check-availability.sh [--wait] devbox-N" >&2
 	exit 1
 fi
-
-server_type="$(fleet_host_var "$fleet_inventory_json" "$machine" hcloud_server_type)"
-location="$(fleet_host_var "$fleet_inventory_json" "$machine" hcloud_location)"
-token="${TF_VAR_hcloud_token:?TF_VAR_hcloud_token is not set (put it in .env)}"
-poll_seconds="${POLL_SECONDS:-60}"
+machine="$1"
 
 command -v jq >/dev/null || {
 	echo "jq is required" >&2
 	exit 1
 }
+
+if [ ! -f "$specs_file" ]; then
+	echo "missing $specs_file; copy devboxes.example.tfvars.json and edit it" >&2
+	exit 1
+fi
+
+spec="$(jq -e --arg machine "$machine" '.devboxes[$machine]' "$specs_file")" || {
+	echo "$machine has no Hetzner spec; there is no stock to check for it" >&2
+	exit 1
+}
+
+server_type="$(jq -er '.server_type' <<<"$spec")"
+location="$(jq -er '.location' <<<"$spec")"
+token="${TF_VAR_hcloud_token:?TF_VAR_hcloud_token is not set (put it in .env)}"
+poll_seconds="${POLL_SECONDS:-60}"
 
 api() {
 	curl -fsS -H "Authorization: Bearer $token" "https://api.hetzner.cloud/v1/$1"

@@ -2,11 +2,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-validator="$repo_root/scripts/validate-inventory.py"
+validator="$repo_root/scripts/validate-fleet.py"
 fixtures="$repo_root/tests/fixtures/inventory"
-# Host lookups that always fail, so a fixture host that happens to exist in the
-# developer's own tailnet cannot change the result.
-export PATH="$repo_root/tests/scripts/unresolvable:$PATH"
 fail=0
 
 expect_pass() {
@@ -29,22 +26,13 @@ expect_fail() {
 	fi
 }
 
-expect_pass one-hcloud.yml
-expect_pass several-hcloud.yml
-expect_pass several-manual.yml
-expect_pass mixed.yml
+expect_pass fleet.yml
 expect_pass empty.yml
-expect_pass no-hosts-key.yml
 
 expect_fail invalid-name.yml
-expect_fail overlap.yml
-expect_fail missing-hcloud-setting.yml
+expect_fail child-groups.yml
 expect_fail two-keepalive.yml
-expect_fail placeholder.yml
-expect_fail invalid-image.yml
-expect_fail invalid-boolean.yml
-expect_fail manual-magicdns.yml
 expect_fail quoted-keepalive.yml
-expect_fail malformed-hosts.yml
+expect_fail placeholder.yml
 
 exit "$fail"

@@ -6,4 +6,5 @@ devboxes:
     devbox-1:
       claude_keepalive_enabled: true
     devbox-2:
-      claude_keepalive_enabled: true
+    devbox-3:
+      ansible_user: local-admin

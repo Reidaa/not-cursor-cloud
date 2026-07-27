@@ -12,7 +12,11 @@ fi
 # The fleet contract — valid names, locations, Ubuntu releases — shared with
 # OpenTofu and the Ansible playbook. Read on demand so sourcing this file needs
 # no tools.
-fleet_contract_file="$fleet_repo_root/fleet-contract.json"
+fleet_contract_file="$fleet_repo_root/fleet/contract.json"
+
+# Each provider ships one script that prints what it has created. Tests point
+# this at fixtures so a check never depends on the real fleet.
+fleet_providers_dir="${FLEET_PROVIDERS_DIR:-$fleet_repo_root/fleet/providers}"
 
 fleet_contract() {
 	jq -er "$1" "$fleet_contract_file"
@@ -35,18 +39,20 @@ fleet_validate_machine_name() {
 	fi
 }
 
-fleet_host_group() {
-	local inventory_json="$1"
-	local machine="$2"
-	jq -er --arg machine "$machine" '
-    if (.hcloud_devboxes.hosts // []) | index($machine) then
-      "hcloud_devboxes"
-    elif (.manual_devboxes.hosts // []) | index($machine) then
-      "manual_devboxes"
-    else
-      error("unknown host")
-    end
-  ' <<<"$inventory_json"
+# Every provider prints what it has created, keyed by machine name. Collect them
+# into {provider: {machine: {address, admin_user}}} so a caller can see who owns
+# a host as well as how to reach it. Ansible never reads this: the contract
+# exists to check the fleet, not to build the inventory.
+fleet_provider_hosts() {
+	local script provider hosts merged='{}'
+	for script in "$fleet_providers_dir"/*/hosts.sh; do
+		provider="$(basename "$(dirname "$script")")"
+		# A provider that cannot answer is a fault, not an empty fleet.
+		hosts="$("$script")" || return 1
+		merged="$(jq --arg provider "$provider" --argjson hosts "$hosts" \
+			'.[$provider] = $hosts' <<<"$merged")" || return 1
+	done
+	printf '%s\n' "$merged"
 }
 
 fleet_host_var() {
@@ -71,10 +77,9 @@ fleet_host_var_or() {
 }
 
 # Every per-host command opens the same way: check the argument count, check the
-# name, then find the host in inventory. Callers pass their usage line and their
-# arguments, and read the results from fleet_machine, fleet_inventory_json, and
-# fleet_group.
-# shellcheck disable=SC2034  # fleet_group is read by the sourcing script
+# name, then confirm the host is in the fleet. Callers pass their usage line and
+# their arguments, and read the results from fleet_machine and
+# fleet_inventory_json.
 fleet_require_machine() {
 	local usage="$1"
 	shift
@@ -86,7 +91,8 @@ fleet_require_machine() {
 	fleet_machine="$1"
 	fleet_validate_machine_name "$fleet_machine" || return 1
 	fleet_inventory_json="$(fleet_read_inventory)"
-	if ! fleet_group="$(fleet_host_group "$fleet_inventory_json" "$fleet_machine")"; then
+	if ! jq -e --arg machine "$fleet_machine" '._meta.hostvars | has($machine)' \
+		>/dev/null <<<"$fleet_inventory_json"; then
 		echo "Unknown machine: $fleet_machine" >&2
 		return 1
 	fi

@@ -7,7 +7,7 @@
     - ../versions.yml
     # Valid names, locations, and Ubuntu releases, shared with OpenTofu and the
     # scripts. Loaded after group_vars, so it wins on any name they share.
-    - ../fleet-contract.json
+    - ../fleet/contract.json
   pre_tasks:
     - name: Check the DevBox name
       ansible.builtin.assert:

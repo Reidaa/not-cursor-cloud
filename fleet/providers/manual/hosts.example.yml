@@ -1,0 +1,10 @@
+---
+# Machines you made yourself, and how to reach each one for its first Ansible
+# run. Every later run reaches a host by its own name, so drop the address once
+# MagicDNS answers for it.
+#
+# admin_user is the account that already exists on the machine. It must match
+# the host's ansible_user in the Ansible inventory; just doctor checks that.
+# devbox-2:
+#   address: 192.168.1.40
+#   admin_user: local-admin

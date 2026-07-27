@@ -1,9 +1,6 @@
 ---
+# A fleet with no members yet. Valid: nothing to configure.
 devboxes:
   vars:
     ansible_user: admin
-  children:
-    hcloud_devboxes:
-      hosts: {}
-    manual_devboxes:
-      hosts: {}
+  hosts:

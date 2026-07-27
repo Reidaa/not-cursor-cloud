@@ -1,0 +1,10 @@
+---
+# The provider no longer lives in the inventory, so a child group named after
+# one must be refused rather than quietly ignored.
+devboxes:
+  vars:
+    ansible_user: admin
+  children:
+    hcloud_devboxes:
+      hosts:
+        devbox-1:

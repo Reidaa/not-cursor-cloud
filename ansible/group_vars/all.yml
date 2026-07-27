@@ -20,7 +20,7 @@ t3code_port: 3773
 # Tailscale
 tailscale_authkey: "{{ lookup('ansible.builtin.env', 'TAILSCALE_AUTHKEY') | default('', true) }}"
 
-# The supported Ubuntu releases live in fleet-contract.json, which the play
+# The supported Ubuntu releases live in fleet/contract.json, which the play
 # loads, so adding a release does not mean editing this file too.
 supported_architectures:
   - x86_64

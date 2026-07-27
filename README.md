@@ -1,15 +1,16 @@
 # not-cursor-cloud
 
-An opinionated fleet of remote coding hosts. Ansible manages all DevBoxes.
-OpenTofu creates the hosts listed in the `hcloud_devboxes` inventory group.
-You may also add machines that you create by hand.
+An opinionated fleet of remote coding hosts. Ansible manages all DevBoxes, and
+knows only which machines belong to the fleet. Each provider under
+`fleet/providers/` decides how its own machines are made: OpenTofu creates the
+Hetzner ones, and you may also add machines you built by hand.
 
 Each host runs T3 Code, Codex CLI, Claude Code, and OpenCode. Apps stay
 private through Tailscale.
 
 ## What it creates
 
-- One server and firewall for each host in `hcloud_devboxes`.
+- One server and firewall for each host in the Hetzner DevBox specs.
 - Ubuntu 24.04 or 26.04 with security updates and hardened SSH.
 - A passwordless, non-sudo `agent` account for coding tools.
 - Pinned Node.js, mise, GitHub CLI, T3 Code, Codex CLI, Claude Code, and
@@ -49,8 +50,11 @@ just setup
 
 Edit `.env` and replace every placeholder. Restrict
 `TF_VAR_bootstrap_ssh_source_ips` to your current public IPv4 address with a
-`/32` suffix. Edit `ansible/inventory/hosts.yml` before you plan. Host names
-must use `devbox-N`, and OpenTofu reads only `hcloud_devboxes`.
+`/32` suffix. Then name your hosts in two places before you plan: list them in
+`ansible/inventory/hosts.yml`, and give the Hetzner ones a specification in
+`fleet/providers/hcloud/devboxes.auto.tfvars.json`. Host names must use
+`devbox-N`. `just doctor` refuses a host that appears in one file but not the
+other.
 
 ```bash
 just doctor
@@ -62,8 +66,9 @@ just bootstrap devbox-1
 ```
 
 `just setup` never replaces an existing inventory. No command writes inventory.
-`just bootstrap` reads the new public IP from OpenTofu, waits for SSH, and runs
-Ansible for that host.
+`just bootstrap` asks each provider for the new host's address, waits for SSH,
+and runs Ansible for that host. Every later command reaches the host by its own
+name, because the tailscale role enrols it under its inventory name.
 
 ## Enroll Tailscale
 
@@ -71,7 +76,7 @@ If `TAILSCALE_AUTHKEY` is empty, enrollment is intentionally manual. Use the
 public address from the fleet output:
 
 ```bash
-ssh admin@$(tofu -chdir=tofu output -json devboxes | jq -r '."devbox-1".ipv4')
+ssh admin@$(tofu -chdir=fleet/providers/hcloud output -json devboxes | jq -r '."devbox-1".ipv4')
 sudo tailscale up --hostname devbox-1 --ssh
 exit
 ssh admin@devbox-1 true
@@ -87,9 +92,8 @@ open the URL from `tailscale serve`, enable HTTPS, and leave Funnel off. Then
 run `just configure devbox-1` again.
 
 Restrict your tailnet policy so only your identity can reach this node. Public
-SSH is set per host in inventory. After MagicDNS works, set
-`hcloud_enable_public_ssh: false`, then review and apply that one firewall
-change.
+SSH is set per host in the Hetzner specs. After MagicDNS works, set that host's
+`enable_public_ssh` to `false`, then review and apply that one firewall change.
 
 ## Pair a T3 Code client
 
@@ -219,21 +223,43 @@ your tailnet.
 
 ## Configuration
 
-`just setup` creates two ignored local files and never overwrites them:
+The fleet is split in two. Ansible knows which machines are members and what
+should run on them. It knows nothing about who created them or where they are;
+that belongs to the provider that made them.
 
 | File | Purpose |
 | --- | --- |
+| `ansible/inventory/hosts.yml` | Fleet membership: one flat list of names |
+| `ansible/inventory/host_vars/<name>.yml` | One host's application settings |
+| `fleet/providers/hcloud/devboxes.auto.tfvars.json` | What each Hetzner machine costs and where it runs |
+| `fleet/providers/manual/hosts.yml` | Machines you made, and the address each needs for its first run |
 | `.env` | Fleet secrets, bootstrap ranges, account defaults, and an optional Tailscale key |
-| `ansible/inventory/hosts.yml` | Fleet members and each host's non-secret settings |
 
-[`fleet-contract.json`](fleet-contract.json) holds the rules every host must
+`just setup` creates all four local files from tracked examples and never
+overwrites them. A host needs no address after its first run: the tailscale role
+enrols it under its inventory name, so the name is the address.
+
+Each Hetzner machine takes five settings, and all five are required:
+
+| Setting | Meaning |
+| --- | --- |
+| `server_type` | Hetzner server type, such as `cx33`. Changing it resizes the machine |
+| `location` | Hetzner location. Changing it replaces the machine |
+| `image` | `ubuntu-24.04` or `ubuntu-26.04`. Changing it replaces the machine |
+| `enable_public_ssh` | Whether the firewall opens SSH to your bootstrap ranges |
+| `delete_protection` | Whether Hetzner refuses to delete or rebuild the machine |
+
+[`fleet/contract.json`](fleet/contract.json) holds the rules every host must
 follow: the machine name pattern, the server type pattern, the accepted Hetzner
 locations, the supported Ubuntu releases, and the documentation IPv4 ranges that
 mark an unedited example. OpenTofu, `just doctor`, and the Ansible playbook all
 read it, so adding a location or a release means editing one file.
 
-Each of the three still checks the inventory itself, because each can run on its
-own: `tofu plan` must refuse a bad host even when nobody ran `just doctor`.
+Each rule has exactly one owner. Hetzner spec rules belong to OpenTofu, which
+refuses a bad host even when nobody ran `just doctor`. Rules about the fleet as
+a whole belong to `scripts/validate-fleet.py`. The three values that live in
+both layers — membership, the admin account, and which provider owns a host —
+belong to `just doctor`, the only command that reads both.
 
 Tracked examples document every setting. Node.js, mise, and GitHub CLI pins
 live in [`versions.yml`](versions.yml). Dedicated Ansible roles manage their
@@ -257,44 +283,61 @@ just smoke devbox-2
 just smoke-all
 ```
 
-`just test` runs the offline checks: inventory fixtures, fleet command
-behaviour, the Tailscale role against both Ubuntu releases, the tailnet rename
-decision, and the OpenTofu plan against a mocked Hetzner provider. It creates
-nothing and contacts no host, so it is safe to run at any time.
+`just test` runs the offline checks: fleet fixtures, fleet command behaviour,
+the Tailscale role against both Ubuntu releases, the tailnet rename decision,
+and the OpenTofu plan against a mocked Hetzner provider. It creates nothing and
+contacts no host, so it is safe to run at any time.
 
-`just destroy-hcloud-fleet` deletes every Hetzner host in inventory at once.
-Use the two-apply removal below instead; the recipe exists for tearing down a
-whole throwaway fleet.
+`just destroy-hcloud-fleet` deletes every declared Hetzner host at once. Use the
+two-apply removal below instead; the recipe exists for tearing down a whole
+throwaway fleet.
 
 ## Manage the fleet
 
-To add a Hetzner host, choose a new `devbox-N` number and add it under
-`hcloud_devboxes`. Set its type, location, Ubuntu image, public SSH state, and
-delete protection state. Run `doctor`, check stock, plan, apply, then bootstrap
-that host. Adding one entry should add one server and one firewall.
+To add a Hetzner host, choose a new `devbox-N` number, add it to the inventory,
+and give it a specification in `fleet/providers/hcloud/devboxes.auto.tfvars.json`.
+Run `doctor`, check stock, plan, apply, then bootstrap that host. Adding one
+entry should add one server and one firewall.
 
-To add a host that you made, add it under `manual_devboxes` with an address that
-works for its first run. Run `doctor`, then bootstrap it. Manual hosts must not
-change the OpenTofu plan.
+To add a host that you made, add its name to the inventory and an entry in
+`fleet/providers/manual/hosts.yml` giving the address that works for its first
+run. Run `doctor`, then bootstrap it. Hand-made hosts must not change the
+OpenTofu plan.
 
-To resize a Hetzner host, change only `hcloud_server_type`. Stop active work,
-take a snapshot, shut down the host, and check that the plan shows one in-place
+To resize a Hetzner host, change only its `server_type`. Stop active work, take
+a snapshot, shut down the host, and check that the plan shows one in-place
 change. OpenTofu keeps the current disk size.
 
-For the first `devbox-1` move, keep the old Tailscale address in inventory.
-Back up OpenTofu state, then check that the plan moves state and updates names
-in place. It must show no add, delete, disk growth, IP change, or replacement.
-Apply only after that check. Run Ansible through the old address, test
-`ssh admin@devbox-1`, then remove `ansible_host`.
+Remove a Hetzner host in two applies. First set its `delete_protection` to
+`false` and apply only that change. Then drop it from both the specs and the
+inventory, check that the next plan deletes one server and firewall, and apply.
+Save any data first and retire the host number. Do not reuse it.
 
-Remove a Hetzner host in two applies. First set
-`hcloud_delete_protection: false` and apply only that change. Then remove the
-inventory entry, check that the next plan deletes one server and firewall, and
-apply. Save any data first and retire the host number. Do not reuse it.
+A fleet still holding the original `agent-vps` names has one rename left. Back
+up OpenTofu state, then check that the plan moves state and updates names in
+place. It must show no add, delete, disk growth, IP change, or replacement.
+Apply only after that check, then test `ssh admin@devbox-1`.
+
+## Add a provider
+
+A provider is one directory under `fleet/providers/` holding one executable
+`hosts.sh`, which prints what that provider has created:
+
+```json
+{ "devbox-4": { "address": "203.0.113.10", "admin_user": "admin" } }
+```
+
+`address` is `null` for a machine that is declared but does not exist yet.
+`just bootstrap` uses the address to reach a new host once, before it joins the
+tailnet; `just doctor` uses the names and accounts to check the fleet against
+the inventory. Ansible never runs these scripts, and nothing under `ansible/`
+changes when a provider is added.
 
 ## Security and state
 
-- Never commit `.env`, real inventory, OpenTofu state, or plan files.
+- Never commit `.env`, the Hetzner specs, the hand-made host list, OpenTofu
+  state, or plan files. The inventory holds only names and is tracked-example
+  safe, but the real one stays ignored too.
 - `just setup` restricts local configuration and state files to your account.
 - Local OpenTofu state is plaintext and must be treated as sensitive. Teams
   should use an access-controlled, encrypted remote backend.

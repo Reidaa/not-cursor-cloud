@@ -6,32 +6,58 @@ mock_provider "hcloud" {
   }
 }
 
+# Every run inherits these. A run that cares about a spec overrides devboxes.
 variables {
   hcloud_token             = "test-token"
   ssh_public_key           = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest fleet@example.test"
   bootstrap_ssh_source_ips = ["1.1.1.1/32"]
+
+  devboxes = {
+    devbox-1 = {
+      server_type       = "cx33"
+      location          = "hel1"
+      image             = "ubuntu-24.04"
+      enable_public_ssh = false
+      delete_protection = true
+    }
+  }
 }
 
-run "mixed_fleet_creates_only_hcloud_hosts" {
+run "each_host_gets_one_server_and_one_firewall" {
   command = plan
 
   variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/mixed.yml"
+    devboxes = {
+      devbox-1 = {
+        server_type       = "cx33"
+        location          = "hel1"
+        image             = "ubuntu-24.04"
+        enable_public_ssh = false
+        delete_protection = true
+      }
+      devbox-2 = {
+        server_type       = "cax31"
+        location          = "fsn1"
+        image             = "ubuntu-26.04"
+        enable_public_ssh = true
+        delete_protection = true
+      }
+    }
   }
 
   assert {
     condition     = length(hcloud_server.devboxes) == 2
-    error_message = "The mixed fleet must create two Hetzner servers."
+    error_message = "A two-host fleet must create two Hetzner servers."
   }
 
   assert {
     condition     = length(hcloud_firewall.devboxes) == 2
-    error_message = "The mixed fleet must create two Hetzner firewalls."
+    error_message = "A two-host fleet must create two Hetzner firewalls."
   }
 
   assert {
     condition     = toset(keys(hcloud_server.devboxes)) == toset(["devbox-1", "devbox-2"])
-    error_message = "Manual hosts must not create Hetzner servers."
+    error_message = "Each server must be keyed by its machine name."
   }
 
   assert {
@@ -44,7 +70,7 @@ run "mixed_fleet_creates_only_hcloud_hosts" {
       hcloud_server.devboxes["devbox-1"].rebuild_protection &&
       hcloud_server.devboxes["devbox-1"].keep_disk
     )
-    error_message = "devbox-1 must use its inventory settings and safety flags."
+    error_message = "devbox-1 must use its spec and safety flags."
   }
 
   assert {
@@ -64,7 +90,7 @@ run "mixed_fleet_creates_only_hcloud_hosts" {
       hcloud_server.devboxes["devbox-2"].server_type == "cax31" &&
       hcloud_server.devboxes["devbox-2"].location == "fsn1"
     )
-    error_message = "devbox-2 must use its inventory settings."
+    error_message = "devbox-2 must use its spec."
   }
 
   assert {
@@ -126,58 +152,41 @@ run "mixed_fleet_creates_only_hcloud_hosts" {
       output.devboxes["devbox-2"].image == "ubuntu-26.04" &&
       output.devboxes["devbox-2"].server_type == "cax31"
     )
-    error_message = "The output map must return each host's inventory settings."
+    error_message = "The output map must return each host's spec."
   }
 }
 
-run "manual_fleet_creates_no_hcloud_resources" {
+run "an_empty_fleet_creates_no_resources" {
   command = plan
 
   variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/several-manual.yml"
+    devboxes = {}
   }
 
   assert {
     condition     = length(hcloud_server.devboxes) == 0
-    error_message = "Manual hosts must not create Hetzner servers."
+    error_message = "An empty fleet must create no servers."
   }
 
   assert {
     condition     = length(hcloud_firewall.devboxes) == 0
-    error_message = "Manual hosts must not create Hetzner firewalls."
+    error_message = "An empty fleet must create no firewalls."
   }
-}
-
-run "empty_hosts_key_creates_no_resources" {
-  command = plan
-
-  variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/no-hosts-key.yml"
-  }
-
-  assert {
-    condition     = length(hcloud_server.devboxes) == 0
-    error_message = "A group with no hosts under it must create no servers."
-  }
-}
-
-run "malformed_group_fails_instead_of_emptying_the_fleet" {
-  command = plan
-
-  variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/malformed-hosts.yml"
-  }
-
-  expect_failures = [
-    var.ansible_inventory_file,
-  ]
 }
 
 run "invalid_name_fails_before_create" {
   command = plan
 
   variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/invalid-name.yml"
+    devboxes = {
+      devbox-01 = {
+        server_type       = "cx33"
+        location          = "hel1"
+        image             = "ubuntu-24.04"
+        enable_public_ssh = false
+        delete_protection = true
+      }
+    }
   }
 
   expect_failures = [
@@ -189,7 +198,15 @@ run "invalid_image_fails_before_create" {
   command = plan
 
   variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/invalid-image.yml"
+    devboxes = {
+      devbox-1 = {
+        server_type       = "cx33"
+        location          = "hel1"
+        image             = "ubuntu-22.04"
+        enable_public_ssh = false
+        delete_protection = true
+      }
+    }
   }
 
   expect_failures = [
@@ -197,15 +214,43 @@ run "invalid_image_fails_before_create" {
   ]
 }
 
-run "invalid_firewall_flag_fails_before_create" {
+run "invalid_location_fails_before_create" {
   command = plan
 
   variables {
-    ansible_inventory_file = "../tests/fixtures/inventory/invalid-boolean.yml"
+    devboxes = {
+      devbox-1 = {
+        server_type       = "cx33"
+        location          = "atlantis"
+        image             = "ubuntu-24.04"
+        enable_public_ssh = false
+        delete_protection = true
+      }
+    }
   }
 
   expect_failures = [
-    hcloud_firewall.devboxes["devbox-1"],
+    hcloud_server.devboxes["devbox-1"],
+  ]
+}
+
+run "invalid_server_type_fails_before_create" {
+  command = plan
+
+  variables {
+    devboxes = {
+      devbox-1 = {
+        server_type       = "biggest one please"
+        location          = "hel1"
+        image             = "ubuntu-24.04"
+        enable_public_ssh = false
+        delete_protection = true
+      }
+    }
+  }
+
+  expect_failures = [
+    hcloud_server.devboxes["devbox-1"],
   ]
 }
 
@@ -213,7 +258,6 @@ run "ipv4_default_route_cannot_open_ssh" {
   command = plan
 
   variables {
-    ansible_inventory_file    = "../tests/fixtures/inventory/one-hcloud.yml"
     bootstrap_ssh_source_ips = ["1.2.3.4/0"]
   }
 
@@ -226,7 +270,6 @@ run "placeholder_ssh_range_fails_direct_plan" {
   command = plan
 
   variables {
-    ansible_inventory_file    = "../tests/fixtures/inventory/one-hcloud.yml"
     bootstrap_ssh_source_ips = ["203.0.113.10/32"]
   }
 

@@ -34,15 +34,17 @@ jobs:
         run: uv sync --locked
 
       - name: Prepare generated files
-        run: cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
+        run: |
+          cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml
+          cp fleet/providers/manual/hosts.example.yml fleet/providers/manual/hosts.yml
 
       - name: Initialize OpenTofu
-        run: tofu -chdir=tofu init -backend=false -input=false
+        run: tofu -chdir=fleet/providers/hcloud init -backend=false -input=false
 
       - name: Validate OpenTofu
         run: |
-          tofu -chdir=tofu fmt -check -diff
-          tofu -chdir=tofu validate
+          tofu -chdir=fleet/providers/hcloud fmt -check -diff
+          tofu -chdir=fleet/providers/hcloud validate
 
       - name: Lint YAML and Ansible
         run: |
@@ -52,4 +54,6 @@ jobs:
           uv run ansible-playbook playbook.yml --syntax-check
 
       - name: Lint shell scripts
-        run: shellcheck scripts/*.sh
+        run: |
+          shellcheck -x scripts/*.sh tests/*.sh
+          shellcheck scripts/lib/*.sh fleet/providers/*/*.sh

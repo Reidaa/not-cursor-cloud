@@ -1,17 +1,9 @@
 ---
 devboxes:
-  children:
-    hcloud_devboxes:
-      hosts:
-        devbox-1:
-          hcloud_server_type: cx33
-          hcloud_location: hel1
-          hcloud_image: ubuntu-24.04
-          hcloud_enable_public_ssh: false
-          hcloud_delete_protection: true
-          claude_keepalive_enabled: "true"
-    manual_devboxes:
-      hosts:
-        devbox-2:
-          ansible_host: 192.168.1.40
-          claude_keepalive_enabled: "yes"
+  vars:
+    ansible_user: admin
+  hosts:
+    devbox-1:
+      claude_keepalive_enabled: "true"
+    devbox-2:
+      claude_keepalive_enabled: "yes"

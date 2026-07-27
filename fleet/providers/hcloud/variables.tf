@@ -4,25 +4,19 @@ variable "hcloud_token" {
   sensitive   = true
 }
 
-variable "ansible_inventory_file" {
-  description = "Fleet inventory. OpenTofu reads only its hcloud_devboxes group."
-  type        = string
-  default     = "../ansible/inventory/hosts.yml"
+variable "devboxes" {
+  description = "Hetzner DevBoxes to create, by machine name."
+  type = map(object({
+    server_type       = string
+    location          = string
+    image             = string
+    enable_public_ssh = bool
+    delete_protection = bool
+  }))
 
-  validation {
-    # A group written with no hosts under it decodes to null, which is allowed
-    # and simply means the group is empty. An absent group decodes to the
-    # "missing" sentinel, and any other shape is a typo; keys() rejects both. A
-    # list or a string here would otherwise read as a fleet with no hosts, which
-    # plans the deletion of every existing server.
-    condition = fileexists(var.ansible_inventory_file) ? alltrue([
-      for hosts in [
-        try(yamldecode(file(var.ansible_inventory_file)).devboxes.children.hcloud_devboxes.hosts, "missing"),
-        try(yamldecode(file(var.ansible_inventory_file)).devboxes.children.manual_devboxes.hosts, "missing"),
-      ] : hosts == null || can(keys(hosts))
-    ]) : false
-    error_message = "ansible_inventory_file must contain both DevBox child groups, each holding a map of hosts."
-  }
+  # Deliberately no default. An empty fleet plans the deletion of every server
+  # that already exists, so a missing or misspelt devboxes.auto.tfvars.json must
+  # fail loudly rather than decode to no hosts.
 }
 
 variable "admin_user" {
@@ -62,9 +56,9 @@ variable "bootstrap_ssh_source_ips" {
         can(regex("^[0-9.]+/[0-9]+$", cidr)) &&
         # The documentation ranges are the ones .env.example ships, so rejecting
         # them here catches an unedited example. The prefixes come from the
-        # fleet contract that doctor.sh and validate-inventory.py also read.
+        # fleet contract that doctor.sh and validate-fleet.py also read.
         !anytrue([
-          for prefix in jsondecode(file("${path.module}/../fleet-contract.json")).documentation_ipv4_prefixes :
+          for prefix in jsondecode(file("${path.module}/../../contract.json")).documentation_ipv4_prefixes :
           startswith(cidr, prefix)
         ])
       ]) &&

@@ -4,17 +4,21 @@
 
 set dotenv-load
 
-tofu_dir := "tofu"
+tofu_dir := "fleet/providers/hcloud"
 
 default:
     @just --list
 
-# Create ignored local configuration without overwriting existing files.
+# Create ignored local configuration without overwriting existing files. The
+# inventory holds no secrets; the other three hold fleet shape and addresses, so
+# only those get 0600.
 setup:
     @test -f .env || { cp .env.example .env; echo "Created .env"; }
     @test -f ansible/inventory/hosts.yml || { cp ansible/inventory/hosts.example.yml ansible/inventory/hosts.yml; echo "Created Ansible inventory"; }
-    @chmod 600 .env ansible/inventory/hosts.yml
-    @find tofu -maxdepth 1 -type f -name 'terraform.tfstate*' -exec chmod 600 {} +
+    @test -f {{ tofu_dir }}/devboxes.auto.tfvars.json || { cp {{ tofu_dir }}/devboxes.example.tfvars.json {{ tofu_dir }}/devboxes.auto.tfvars.json; echo "Created Hetzner DevBox specs"; }
+    @test -f fleet/providers/manual/hosts.yml || { cp fleet/providers/manual/hosts.example.yml fleet/providers/manual/hosts.yml; echo "Created hand-made DevBox list"; }
+    @chmod 600 .env {{ tofu_dir }}/devboxes.auto.tfvars.json fleet/providers/manual/hosts.yml
+    @find {{ tofu_dir }} -maxdepth 1 -type f -name 'terraform.tfstate*' -exec chmod 600 {} +
     @echo "Edit .env, then run: just doctor"
 
 # Check tools, credentials, SSH key, and secure bootstrap settings.
@@ -33,13 +37,13 @@ install-hooks:
 whats-my-ip:
     @curl --fail --silent --show-error --ipv4 https://ifconfig.me/ip
 
-# Verify one inventory host's type and location are in stock.
+# Verify one declared host's type and location are in stock.
 check-availability machine:
-    scripts/check-availability.sh {{ quote(machine) }}
+    {{ tofu_dir }}/check-availability.sh {{ quote(machine) }}
 
 # Poll every 60 seconds until one host's type is in stock.
 wait-availability machine:
-    scripts/check-availability.sh --wait {{ quote(machine) }}
+    {{ tofu_dir }}/check-availability.sh --wait {{ quote(machine) }}
 
 plan: doctor
     umask 077; tofu -chdir={{ tofu_dir }} plan
@@ -50,8 +54,8 @@ apply: doctor
 output *ARGS:
     @tofu -chdir={{ tofu_dir }} output {{ ARGS }}
 
-# Remove every Hetzner host in inventory. To remove one host, clear its
-# hcloud_delete_protection, apply, then drop it from inventory and apply again.
+# Remove every declared Hetzner host. To remove one host, clear its
+# delete_protection, apply, then drop it from the specs and apply again.
 destroy-hcloud-fleet:
     umask 077; tofu -chdir={{ tofu_dir }} destroy
 
@@ -84,7 +88,7 @@ smoke-all:
 
 fmt:
     tofu -chdir={{ tofu_dir }} fmt
-    shfmt -w scripts
+    shfmt -w scripts fleet/providers
     uv run ruff format scripts
     uv run ansible-lint --fix ansible
 
@@ -95,12 +99,12 @@ lint:
     cd ansible && uv run ansible-lint
     # -x follows the sourced fleet library so its variables are checked too.
     shellcheck -x scripts/*.sh tests/*.sh
-    shellcheck scripts/lib/*.sh
+    shellcheck scripts/lib/*.sh fleet/providers/*/*.sh
     uv run ruff check scripts
     uv run ruff format --check scripts
 
 test:
-    tests/inventory-validation.sh
+    tests/fleet-validation.sh
     tests/script-commands.sh
     cd ansible && uv run ansible-playbook -i ../tests/fixtures/inventory/releases.yml ../tests/ansible-supported-releases.yml
     cd ansible && uv run ansible-playbook -i ../tests/fixtures/tailscale-machine-names.yml ../tests/tailscale-machine-name.yml

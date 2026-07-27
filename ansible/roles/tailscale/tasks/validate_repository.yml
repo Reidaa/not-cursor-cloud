@@ -4,7 +4,7 @@
 # codename Ubuntu reports is the one Tailscale publishes under. The play already
 # refused any distribution, release, or architecture this repo does not support.
 #
-# ubuntu_releases comes from fleet-contract.json. The default('') keeps an
+# ubuntu_releases comes from fleet/contract.json. The default('') keeps an
 # untested release failing with the message below instead of a Jinja error.
 - name: Check the Tailscale repository for this Ubuntu release
   ansible.builtin.assert:

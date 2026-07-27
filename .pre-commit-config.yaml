@@ -51,7 +51,7 @@ repos:
 
       - id: tofu-fmt
         name: OpenTofu format
-        entry: tofu -chdir=tofu fmt
+        entry: tofu -chdir=fleet/providers/hcloud fmt
         language: system
-        files: ^tofu/.*\.tf$
+        files: ^fleet/providers/.*\.tf$
         pass_filenames: false

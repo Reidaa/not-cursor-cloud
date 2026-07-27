@@ -14,15 +14,15 @@ machine="$fleet_machine"
 
 admin_user="$(fleet_host_var "$fleet_inventory_json" "$machine" ansible_user)"
 
-if [ "$fleet_group" = "hcloud_devboxes" ]; then
-	devboxes_json="$(tofu -chdir="$repo_root/tofu" output -json devboxes)"
-	address="$(jq -er --arg machine "$machine" '.[$machine].ipv4' <<<"$devboxes_json")" || {
-		echo "OpenTofu has no public IP for $machine; run just apply first" >&2
-		exit 1
-	}
-else
-	address="$(fleet_host_var "$fleet_inventory_json" "$machine" ansible_host)"
-fi
+# A new host has not joined the tailnet yet, so its name does not resolve. Its
+# provider is the only thing that knows an address for this one run; take the
+# first provider that claims the host.
+address="$(fleet_provider_hosts |
+	jq -er --arg machine "$machine" \
+		'[.[][$machine].address // empty] | first // error("no address")')" || {
+	echo "No provider has an address for $machine; create it first" >&2
+	exit 1
+}
 
 echo "Waiting for SSH on $admin_user@$address"
 ssh_ready=false

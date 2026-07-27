@@ -1,14 +1,20 @@
 # OpenTofu / Terraform — state contains the API token and server details.
-tofu/.terraform/
-tofu/.terraform.lock.hcl
-tofu/terraform.tfstate
-tofu/terraform.tfstate.backup
-tofu/*.tfplan
-tofu/*.plan
-tofu/tfplan
-tofu/crash*.log
-tofu/*.tfvars
-tofu/*.tfvars.json
+fleet/providers/*/.terraform/
+fleet/providers/*/.terraform.lock.hcl
+fleet/providers/*/terraform.tfstate
+fleet/providers/*/terraform.tfstate.backup
+fleet/providers/*/*.tfplan
+fleet/providers/*/*.plan
+fleet/providers/*/tfplan
+fleet/providers/*/crash*.log
+fleet/providers/*/*.tfvars
+fleet/providers/*/*.tfvars.json
+# The tracked examples document every setting the real files must supply.
+!fleet/providers/*/*.example.tfvars
+!fleet/providers/*/*.example.tfvars.json
+
+# Fleet — hand-made machines and their first-run addresses.
+fleet/providers/manual/hosts.yml
 
 # Ansible
 ansible/*.retry

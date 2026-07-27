@@ -9,7 +9,7 @@
   vars_files:
     - ../ansible/group_vars/all.yml
     - ../ansible/roles/tailscale/defaults/main.yml
-    - ../fleet-contract.json
+    - ../fleet/contract.json
   vars:
     # Written out in full on purpose. The role builds these strings from a fact,
     # so only a spelled-out expectation can catch a wrong repository.
@@ -49,7 +49,7 @@
   vars_files:
     - ../ansible/group_vars/all.yml
     - ../ansible/roles/tailscale/defaults/main.yml
-    - ../fleet-contract.json
+    - ../fleet/contract.json
   vars:
     ansible_distribution: Ubuntu
     ansible_distribution_version: "22.04"
