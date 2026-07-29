@@ -214,6 +214,7 @@ directory and is not managed by Ansible or infrastructure state.
 ## Verify
 
 ```bash
+just ping devbox-1
 just smoke devbox-1
 just smoke-all
 ```
@@ -277,6 +278,7 @@ just check-availability devbox-2
 just plan
 just apply
 just bootstrap devbox-2
+just ping devbox-2
 just configure devbox-2
 just configure-all
 just smoke devbox-2

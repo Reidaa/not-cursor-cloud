@@ -141,6 +141,11 @@ expect_success "configure runs the playbook" \
 	"$repo_root/scripts/configure.sh" devboxes
 grep -q "ansible-playbook playbook.yml --limit devboxes" "$temp_dir/commands.log" || fail=1
 
+: >"$temp_dir/commands.log"
+expect_success "ping uses Ansible's ping module" \
+	just --justfile "$repo_root/Justfile" --working-directory "$repo_root" ping
+grep -q "ansible devboxes --module-name ansible.builtin.ping" "$temp_dir/commands.log" || fail=1
+
 # configure must apply the fleet-wide rules, not only the per-host ones the
 # playbook checks.
 ANSIBLE_INVENTORY_FILE="$fixtures/inventory/two-keepalive.yml" \

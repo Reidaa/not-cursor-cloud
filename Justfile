@@ -67,6 +67,10 @@ configure machine:
 configure-all:
     scripts/configure.sh devboxes
 
+# Check that Ansible can connect to one host, a pattern, or the full fleet.
+ping machine="devboxes":
+    cd ansible && uv run ansible {{ quote(machine) }} --module-name ansible.builtin.ping
+
 # Dry run with diff — use before and after changing versions.yml
 check *ARGS:
     cd ansible && uv run ansible-playbook playbook.yml --check --diff {{ ARGS }}

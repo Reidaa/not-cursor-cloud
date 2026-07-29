@@ -5,4 +5,10 @@ if [ "${1:-}" = "run" ] && [ "${2:-}" = "ansible-playbook" ]; then
 	printf '%s\n' "$*" >>"${TEST_COMMAND_LOG:?}"
 	exit 0
 fi
+
+if [ "${1:-}" = "run" ] && [ "${2:-}" = "ansible" ] &&
+	[ "${4:-}" = "--module-name" ] && [ "${5:-}" = "ansible.builtin.ping" ]; then
+	printf '%s\n' "$*" >>"${TEST_COMMAND_LOG:?}"
+	exit 0
+fi
 exec "${REAL_UV:?}" "$@"
