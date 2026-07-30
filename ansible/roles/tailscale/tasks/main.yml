@@ -76,3 +76,7 @@
 
       3. Back on your local machine, rerun the playbook.
   when: tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'
+
+- name: Stop configuring an unenrolled DevBox
+  ansible.builtin.meta: end_host
+  when: tailscale_state.rc != 0 or (tailscale_state.stdout | from_json).BackendState != 'Running'
