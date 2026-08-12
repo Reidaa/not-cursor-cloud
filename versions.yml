@@ -17,3 +17,8 @@ github_cli_version: "2.96.0"
 github_cli_checksums:
   amd64: "83d5c2ccad5498f58bf6368acb1ab32588cf43ab3a4b1c301bf36328b1c8bd60"
   arm64: "06f86ec7103d41993b76cd78072f43595c34aaa56506d971d9860e67140bf909"
+
+herdr_version: "0.8.0"
+herdr_checksums:
+  x86_64: "b872ea7e40fa2cb17e857ac9b62b1bf26db7b403c622f5d2f3f5b35f6e9acd28"
+  aarch64: "f647ac66468d9efbc642fe534fb284468f0aea60641606fc008dfc0d82a3ca87"

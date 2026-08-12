@@ -110,6 +110,8 @@ lint:
 test:
     tests/fleet-validation.sh
     tests/script-commands.sh
+    tests/herdr-role.sh
+    tests/t3code-direct-port.sh
     cd ansible && uv run ansible-playbook -i ../tests/fixtures/inventory/releases.yml ../tests/ansible-supported-releases.yml
     cd ansible && uv run ansible-playbook -i ../tests/fixtures/tailscale-machine-names.yml ../tests/tailscale-machine-name.yml
     tofu -chdir={{ tofu_dir }} test

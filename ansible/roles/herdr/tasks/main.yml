@@ -1,0 +1,27 @@
+---
+- name: Check Herdr architecture support
+  ansible.builtin.assert:
+    that: ansible_architecture in ['x86_64', 'aarch64']
+    fail_msg: "Unsupported CPU architecture: {{ ansible_architecture }}"
+
+- name: Download pinned Herdr binary
+  ansible.builtin.get_url:
+    url: >-
+      https://github.com/herdrdev/herdr/releases/download/v{{ herdr_version }}/herdr-linux-{{ ansible_architecture }}
+    dest: "/opt/herdr-v{{ herdr_version }}-linux-{{ ansible_architecture }}"
+    checksum: "sha256:{{ herdr_checksums[ansible_architecture] }}"
+    mode: "0755"
+
+- name: Symlink Herdr binary
+  ansible.builtin.file:
+    src: "/opt/herdr-v{{ herdr_version }}-linux-{{ ansible_architecture }}"
+    dest: /usr/local/bin/herdr
+    state: link
+  when: not ansible_check_mode
+
+- name: Verify installed Herdr version
+  ansible.builtin.command: /usr/local/bin/herdr --version
+  register: herdr_installed_version
+  changed_when: false
+  failed_when: herdr_version not in herdr_installed_version.stdout
+  when: not ansible_check_mode

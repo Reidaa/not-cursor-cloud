@@ -70,10 +70,14 @@ smoke_host() {
 	check "t3code service is enabled" systemctl is-enabled t3code
 	check "T3 Code answers on localhost" curl --fail --silent http://127.0.0.1:3773
 	check "tailscaled is active" systemctl is-active tailscaled
-	check "T3 Code Serve is configured" "tailscale serve status | grep -q 3773"
+	check "T3 Code answers on the tailnet" \
+		"curl --fail --silent http://\$(tailscale ip -4):3773"
+	check "T3 Code does not use Tailscale Serve" \
+		"! tailscale serve status | grep -q 3773"
 	check "agent user exists" "id '$agent_user'"
 	check "agent user has no sudo" "id '$agent_user' >/dev/null && ! sudo -l -U '$agent_user' | grep -q 'may run'"
 	check "OpenCode CLI is installed" "sudo -u '$agent_user' opencode --version"
+	check_agent "Herdr is installed" herdr --version
 	check_agent "agent Tailscale SSH works" "test \"\$(id -un)\" = '$agent_user'"
 	check_agent "mise is active for the agent" "bash -ic 'declare -F mise >/dev/null && mise --version'"
 	check_agent "agent resolves managed gh" "test \"\$(command -v gh)\" = /usr/local/bin/gh"

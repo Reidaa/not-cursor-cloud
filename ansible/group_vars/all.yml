@@ -14,7 +14,7 @@ agent_state: "{{ agent_root }}/.state"
 
 # T3 Code service
 t3code_bin: t3
-t3code_host: 127.0.0.1
+t3code_host: 0.0.0.0
 t3code_port: 3773
 
 # Tailscale
